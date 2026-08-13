@@ -1,0 +1,277 @@
+// ============================================================
+// SFF (Say For Fun) — Prisma Schema
+// Nền tảng cộng đồng thu gọn (kiểu Discord) tích hợp AI native + Voice/Video
+// Database: PostgreSQL (Supabase) + pgvector (bật tay qua SQL Editor)
+// Yêu cầu: prisma@6.x + @prisma/client@6.x
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------
+
+enum ServerRole {
+  OWNER
+  MODERATOR
+  MEMBER
+}
+
+enum MemberStatus {
+  ACTIVE
+  BANNED
+}
+
+enum ChannelType {
+  TEXT
+  VOICE
+  DM
+}
+
+enum NotificationType {
+  MENTION
+  DIRECT_MESSAGE
+  SERVER_INVITE
+  AI_REPLY
+}
+
+// ------------------------------------------------------------
+// NHÓM 1: NGƯỜI DÙNG & BẢO MẬT
+// ------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  avatarUrl    String?  @map("avatar_url")
+  preferredLang String  @default("vi") @map("preferred_lang") // dùng cho dịch thuật realtime
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  refreshTokens   RefreshToken[]
+  ownedServers    Server[]        @relation("serverOwner")
+  serverMembers   ServerMember[]
+  channelMembers  ChannelMember[]
+  messages        Message[]
+  reactions       MessageReaction[]
+  notifications   Notification[]
+  aiDocuments     AiDocument[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ------------------------------------------------------------
+// NHÓM 2: SERVER & THÀNH VIÊN
+// ------------------------------------------------------------
+
+model Server {
+  id         String   @id @default(uuid())
+  name       String
+  iconUrl    String?  @map("icon_url")
+  ownerId    String   @map("owner_id")
+  inviteCode String   @unique @map("invite_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  owner       User           @relation("serverOwner", fields: [ownerId], references: [id])
+  members     ServerMember[]
+  channels    Channel[]
+  aiDocuments AiDocument[]
+
+  @@map("servers")
+}
+
+model ServerMember {
+  id       String       @id @default(uuid())
+  serverId String       @map("server_id")
+  userId   String       @map("user_id")
+  role     ServerRole   @default(MEMBER)
+  status   MemberStatus @default(ACTIVE)
+  joinedAt DateTime     @default(now()) @map("joined_at")
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([serverId, userId])
+  @@index([userId])
+  @@map("server_members")
+}
+
+// ------------------------------------------------------------
+// NHÓM 3: CHANNEL & TIN NHẮN
+// ------------------------------------------------------------
+
+model Channel {
+  id        String      @id @default(uuid())
+  serverId  String?     @map("server_id") // null nếu type = DM
+  name      String?     // null cho DM (tên hiển thị suy ra từ 2 thành viên)
+  type      ChannelType @default(TEXT)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  server   Server?         @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  members  ChannelMember[] // chỉ dùng cho DM (2 dòng / DM)
+  messages Message[]
+
+  @@index([serverId, type])
+  @@map("channels")
+}
+
+model ChannelMember {
+  id        String   @id @default(uuid())
+  channelId String   @map("channel_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("channel_members")
+}
+
+model Message {
+  id        String    @id @default(uuid())
+  channelId String    @map("channel_id")
+  senderId  String?   @map("sender_id") // null nếu là tin nhắn do AI Persona trả lời
+  content   String
+  isAiReply Boolean   @default(false) @map("is_ai_reply")
+  editedAt  DateTime? @map("edited_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  channel     Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender      User?               @relation(fields: [senderId], references: [id])
+  attachments MessageAttachment[]
+  reactions   MessageReaction[]
+  embedding   MessageEmbedding?
+  translations MessageTranslation[]
+
+  @@index([channelId, createdAt])
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  fileUrl   String   @map("file_url")
+  fileType  String   @map("file_type") // image | file
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_attachments")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+// Vector embedding cho từng tin nhắn — phục vụ Tìm kiếm ngữ nghĩa (semantic search)
+model MessageEmbedding {
+  id        String                    @id @default(uuid())
+  messageId String                    @unique @map("message_id")
+  embedding Unsupported("vector(768)")
+  createdAt DateTime                  @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_embeddings")
+}
+
+// Cache bản dịch để không phải gọi lại Gemini mỗi lần xem tin nhắn cũ
+model MessageTranslation {
+  id              String   @id @default(uuid())
+  messageId       String   @map("message_id")
+  targetLang      String   @map("target_lang")
+  translatedText  String   @map("translated_text")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, targetLang])
+  @@map("message_translations")
+}
+
+// ------------------------------------------------------------
+// NHÓM 4: AI PERSONA / RAG THEO SERVER
+// ------------------------------------------------------------
+
+model AiDocument {
+  id          String   @id @default(uuid())
+  serverId    String   @map("server_id")
+  uploadedById String  @map("uploaded_by_id")
+  title       String
+  contentRaw  String   @map("content_raw")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  server     Server               @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  uploadedBy User                 @relation(fields: [uploadedById], references: [id])
+  chunks     DocumentEmbedding[]
+
+  @@index([serverId])
+  @@map("ai_documents")
+}
+
+// 1 tài liệu được chia nhỏ (chunk) thành nhiều đoạn, mỗi đoạn có 1 embedding riêng
+// — chuẩn kỹ thuật RAG (Retrieval-Augmented Generation)
+model DocumentEmbedding {
+  id         String                    @id @default(uuid())
+  documentId String                    @map("document_id")
+  chunkText  String                    @map("chunk_text")
+  embedding  Unsupported("vector(768)")
+  createdAt  DateTime                  @default(now()) @map("created_at")
+
+  document AiDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_embeddings")
+}
+
+// ------------------------------------------------------------
+// NHÓM 5: HỖ TRỢ
+// ------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  type      NotificationType
+  content   String
+  isRead    Boolean          @default(false) @map("is_read")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
