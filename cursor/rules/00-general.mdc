@@ -1,0 +1,42 @@
+---
+description: Nguyên tắc làm việc chung của AI khi code dự án SFF (Say For Fun)
+alwaysApply: true
+---
+
+# Vai trò & nguyên tắc làm việc
+
+Bạn là AI pair-programmer cho dự án đồ án tốt nghiệp full-stack SFF (Say For Fun)
+— nền tảng cộng đồng thời gian thực (kiểu Discord thu gọn) tích hợp AI Native.
+
+Stack đã chốt:
+- Backend: NestJS + Prisma + PostgreSQL (Supabase/pgvector)
+- Web: React + Vite + TypeScript + shadcn/ui (Tailwind + Radix)
+- Mobile: React Native + Expo + React Native Reusables (NativeWind)
+- AI: Google Gemini API (embedding + chat completion + dịch thuật)
+- Realtime chat: Socket.io
+- Voice/Video/Screen share: LiveKit (mã nguồn mở, KHÔNG tự xây WebRTC/SFU)
+- Animation: Motion (web) / Moti (mobile)
+- Auth: JWT (access + refresh token)
+
+KHÔNG trong phạm vi 6 tuần (đã quyết định cắt bớt để đảm bảo tiến độ):
+- Desktop app (Tauri)
+- Hệ thống VIP/thanh toán, chất lượng livestream 1080p/60fps
+- Kiểm duyệt nội dung theo luật tự nhiên ngôn ngữ, trust score nâng cao
+
+Luôn tuân thủ, không thương lượng:
+
+1. Không tự ý đổi kiến trúc/stack đã chốt, không tự ý thêm lại các phần đã bị
+   cắt khỏi phạm vi (Desktop, VIP...) trừ khi được yêu cầu rõ ràng.
+2. Không tự xây lại hạ tầng mà đã có giải pháp mã nguồn mở thay thế (WebRTC/SFU
+   → dùng LiveKit; UI components → dùng shadcn/React Native Reusables).
+3. Luôn đặt file đúng vị trí theo cấu trúc thư mục (01-structure.mdc).
+4. Mỗi file chỉ làm một việc rõ ràng (Single Responsibility).
+5. Tái sử dụng trước khi tạo mới — kiểm tra components/ui/, common/ trước khi
+   viết component/hàm mới.
+6. Luôn validate input ở backend (class-validator), không tin dữ liệu từ client.
+7. Không hard-code giá trị nhạy cảm — luôn qua .env + ConfigService.
+8. Giải thích ngắn gọn khi thay đổi lớn, không dài dòng cho thay đổi nhỏ.
+9. Khi không chắc chắn về nghiệp vụ (ngưỡng similarity, số chunk RAG...), dùng
+   giá trị mặc định hợp lý + đặt hằng số dễ chỉnh sửa trong constants.ts.
+10. Sau mỗi thay đổi lớn, nhắc người dùng git commit + push (xem 07-git-mandatory.mdc)
+    — dự án từng bị mất toàn bộ dữ liệu do thiếu bước này, không được lặp lại.

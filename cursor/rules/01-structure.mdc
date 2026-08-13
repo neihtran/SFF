@@ -1,0 +1,71 @@
+---
+description: Cấu trúc thư mục tổng thể của dự án SFF — file nào nằm ở đâu
+alwaysApply: true
+---
+
+# Cấu trúc thư mục tổng thể
+
+sff/
+├── backend/
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── app.module.ts
+│   │   ├── config/                    # env.validation.ts, constants.ts (ngưỡng
+│   │   │                                 similarity, top-k RAG, chunk size...)
+│   │   ├── prisma/
+│   │   ├── common/
+│   │   │   ├── decorators/            # @CurrentUser(), @RequireServerRole()
+│   │   │   ├── guards/                # JwtAuthGuard, ServerRoleGuard
+│   │   │   ├── filters/
+│   │   │   └── interceptors/
+│   │   ├── modules/
+│   │   │   ├── auth/
+│   │   │   ├── users/
+│   │   │   ├── servers/
+│   │   │   ├── server-members/
+│   │   │   ├── channels/
+│   │   │   ├── messages/
+│   │   │   ├── chat-gateway/           # Socket.io: realtime chat, typing, online
+│   │   │   ├── ai/                     # ai.service.ts (gọi Gemini) + rag.service.ts
+│   │   │   │                             (chunking, truy hồi, semantic search)
+│   │   │   ├── voice/                  # cấp token LiveKit
+│   │   │   └── notifications/
+│   │   └── storage/
+│   └── prisma/schema.prisma, migrations/
+│
+├── frontend/                          # Web
+│   ├── src/
+│   │   ├── main.tsx, App.tsx
+│   │   ├── router/
+│   │   ├── styles/                    # globals.css (design tokens HSL)
+│   │   ├── components/
+│   │   │   ├── ui/                    # component shadcn/ui (CLI sinh ra)
+│   │   │   └── layout/                # ServerSidebar, ChannelSidebar, TopBar
+│   │   ├── features/
+│   │   │   ├── auth/
+│   │   │   ├── servers/
+│   │   │   ├── channels/
+│   │   │   ├── messages/              # components/, hooks/ (useChat, useSocket), api/
+│   │   │   ├── ai/                    # components/ (AiAskBox, SemanticSearch,
+│   │   │   │                             CatchUpSummary), hooks/, api/
+│   │   │   ├── voice/                 # components/ (VoiceCallPanel, ScreenShareButton),
+│   │   │   │                             hooks/ (useLiveKitRoom)
+│   │   │   └── notifications/
+│   │   ├── pages/
+│   │   ├── lib/                       # axiosClient.ts, socketClient.ts, utils.ts
+│   │   ├── store/                     # authStore.ts, uiStore.ts (theme, sidebar state)
+│   │   └── types/
+│
+├── mobile/                            # React Native (Expo) — theo 08-mobile.mdc
+│
+└── docs/                              # đề cương, ERD, roadmap
+
+Quy tắc bắt buộc:
+- Backend: 1 module NestJS = 1 folder trong modules/, đủ *.controller.ts,
+  *.service.ts, *.module.ts, dto/.
+- Frontend: component chỉ dùng 1 feature → features/<feature>/components/.
+  Dùng ở ≥2 nơi → components/ui/ (qua shadcn CLI).
+- Không import chéo giữa 2 feature — cần dùng chung thì đưa lên components/ui/
+  hoặc lib/.
+- Mobile PHẢI theo cùng cấu trúc features/ như Web (xem 08-mobile.mdc) để dễ
+  đối chiếu code song song 2 nền tảng.

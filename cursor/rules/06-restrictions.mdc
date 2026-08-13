@@ -1,0 +1,26 @@
+---
+description: Danh sách những điều tuyệt đối không được làm trong dự án SFF
+alwaysApply: true
+---
+
+# Tuyệt đối không được làm
+
+- Không tạo file/component trùng chức năng ở 2 vị trí khác nhau.
+- Không gọi Prisma trực tiếp từ Controller hoặc từ Component frontend/mobile.
+- Không hardcode API key, connection string, LiveKit secret trong code.
+- Không bỏ qua validate input với lý do "để sau".
+- Không dùng any tràn lan để né lỗi TypeScript.
+- Không tự ý thêm thư viện/dependency mới ngoài stack đã chốt trừ khi thực sự
+  cần thiết và đã giải thích lý do.
+- Không tự viết lại UI component cơ bản (Button/Input/Card/Dialog...) thay vì
+  dùng shadcn/ui (web) hoặc React Native Reusables (mobile).
+- Không tự xây dựng hạ tầng WebRTC/SFU riêng — luôn dùng LiveKit.
+- Không viết UI với màu sắc/spacing tuỳ hứng ngoài bảng màu đã định nghĩa
+  (04-design-system.mdc).
+- Không để lộ chi tiết lỗi hệ thống (stack trace, SQL error) ra giao diện
+  người dùng.
+- Không tự ý thêm lại các phần đã bị cắt khỏi phạm vi 6 tuần (Desktop/Tauri,
+  hệ thống VIP/thanh toán, chất lượng livestream 1080p/60fps) trừ khi được yêu
+  cầu rõ ràng và còn dư thời gian.
+- Không thực hiện lệnh Git nguy hiểm (reset --hard, push --force, xoá .git) mà
+  không hỏi xác nhận rõ ràng trước.

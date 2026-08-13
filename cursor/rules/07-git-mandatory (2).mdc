@@ -1,0 +1,30 @@
+---
+description: Quy tắc Git bắt buộc — PHẢI tuân thủ sau mọi thay đổi lớn để tránh mất dữ liệu
+alwaysApply: true
+---
+
+# Git — BẮT BUỘC, không phải tuỳ chọn
+
+Dự án từng bị mất toàn bộ dữ liệu do không có Git. Từ giờ, quy tắc sau là BẮT BUỘC:
+
+1. Sau khi hoàn thành BẤT KỲ prompt/task nào làm thay đổi code (thêm module, sửa
+   bug, thêm tính năng), PHẢI nhắc người dùng chạy:
+   git add .
+   git commit -m "<mô tả ngắn gọn theo Conventional Commits>"
+   git push
+   trước khi chuyển sang việc tiếp theo.
+
+2. Nếu người dùng yêu cầu 1 task mới mà chưa commit task trước đó, CHỦ ĐỘNG nhắc:
+   "Trước khi làm tiếp, bạn đã commit + push thay đổi trước đó chưa?"
+
+3. KHÔNG BAO GIỜ chạy các lệnh git nguy hiểm (git reset --hard, git push --force,
+   git clean -fd, xoá thư mục .git) mà không hỏi xác nhận rõ ràng từ người dùng
+   trước, kèm giải thích hậu quả cụ thể.
+
+4. File .env, node_modules, dist, build KHÔNG được commit — luôn kiểm tra
+   .gitignore đã có đủ các dòng này ở CẢ backend/, frontend/, VÀ mobile/ trước
+   khi commit lần đầu của mỗi project con.
+
+5. Định kỳ (khi người dùng yêu cầu, hoặc sau mỗi Tuần trong roadmap), nhắc người
+   dùng kiểm tra repo GitHub đã có đủ code mới nhất chưa — không tin tưởng tuyệt
+   đối vào máy local hay workspace của editor.

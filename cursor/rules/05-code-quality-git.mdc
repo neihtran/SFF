@@ -1,0 +1,36 @@
+---
+description: Clean code, git commit convention, testing cho SFF
+alwaysApply: true
+---
+
+# Code quality, Git & Testing
+
+## Clean code
+- Function không dài quá ~40 dòng — dài hơn thì tách hàm con.
+- Đặt tên biến/hàm mô tả đúng ý nghĩa, không viết tắt khó hiểu.
+- Không copy-paste logic giống nhau ở ≥2 nơi — tách hàm/hook dùng chung.
+- Xoá code chết (commented-out code, console.log debug) trước khi commit.
+- Comment giải thích "tại sao" (why), không lặp lại điều code đã tự nói rõ.
+- TypeScript strict: true cả backend/frontend/mobile, không dùng any trừ bất khả
+  kháng (kèm comment lý do).
+- Format bằng Prettier + ESLint, chạy lint trước mỗi lần commit.
+
+## Git & commit convention
+- Nhánh: main (production), dev (tích hợp), feature/<ten-tinh-nang> cho việc nhỏ.
+- Conventional Commits:
+  feat: thêm module Channels
+  fix: sửa lỗi token LiveKit hết hạn sớm
+  refactor: tách rag.service.ts khỏi ai.service.ts
+  docs: cập nhật README hướng dẫn setup
+  chore: cập nhật dependency
+- Mỗi commit chỉ gói gọn 1 thay đổi rõ ràng.
+- Xem thêm quy tắc Git BẮT BUỘC (commit/push sau mỗi task lớn) tại
+  07-git-mandatory.mdc.
+
+## Testing
+- Backend: unit test (Jest) tối thiểu cho AuthService, ServersService,
+  MessagesService, RagService (chunking + truy hồi), VoiceService (cấp token).
+- Test case biên: input rỗng, không có quyền theo server role, dữ liệu không
+  tồn tại (404), similarity dưới ngưỡng (RAG không tìm thấy ngữ cảnh phù hợp).
+- Không cần coverage 100% — ưu tiên test luồng nghiệp vụ lõi (AI RAG, phân
+  quyền server, auth).

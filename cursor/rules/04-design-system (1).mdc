@@ -1,0 +1,140 @@
+---
+description: Design system — shadcn/ui (web), React Native Reusables (mobile), bảng màu HSL dùng chung, animation, nguyên tắc UX/UI cho SFF (Say For Fun)
+globs: frontend/**,mobile/**
+alwaysApply: true
+---
+
+# Design System & UX/UI — Đồng bộ Web & Mobile (SFF)
+
+## Nguyên tắc cốt lõi
+Web và Mobile PHẢI dùng chung 1 bộ design token (màu sắc, bo góc, spacing). Không
+định nghĩa 2 bảng màu khác nhau cho 2 nền tảng — thêm màu mới thì thêm ở CẢ HAI
+nơi cùng lúc.
+
+## Thư viện UI bắt buộc
+- **Web**: shadcn/ui (Radix UI + Tailwind). Cài qua CLI (`npx shadcn@latest init`,
+  style "new-york"), thêm component bằng `npx shadcn@latest add <component>` —
+  KHÔNG tự viết lại Button/Input/Card/Dialog từ đầu. Component nên dùng: button,
+  input, textarea, select, card, dialog, sonner (toast), avatar, badge, skeleton,
+  tabs, scroll-area (danh sách chat dài), form (react-hook-form + zod), dropdown-menu,
+  context-menu (menu chuột phải trên tin nhắn — xoá/sửa/reply), popover (emoji
+  picker), separator.
+- **Mobile**: React Native Reusables (bản port shadcn/ui cho React Native), dựng
+  trên NativeWind. Cài theo reactnativereusables.com/docs, dùng đúng tên component
+  tương ứng web để giữ nhất quán khi code song song 2 nền tảng.
+- Cả 2 dùng chung nền **Tailwind CSS**.
+
+## Bảng màu (định dạng HSL — chuẩn shadcn/ui)
+
+```css
+:root {
+  --background: 240 10% 98%;        /* nền trang — trung tính nhẹ, không chói */
+  --foreground: 240 10% 12%;        /* chữ chính */
+  --card: 0 0% 100%;                /* nền card/panel */
+  --card-foreground: 240 10% 12%;
+  --sidebar: 240 8% 96%;            /* nền sidebar server/channel — tối hơn 1 chút so với background */
+
+  --primary: 250 84% 60%;           /* Violet/Indigo — nút chính, link, active channel */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5% 94%;
+  --secondary-foreground: 240 10% 12%;
+  --muted: 240 5% 94%;
+  --muted-foreground: 240 5% 45%;   /* chữ phụ, timestamp, offline status */
+
+  --accent-ai: 262 83% 58%;         /* Purple đậm — highlight tin nhắn AI Persona trả lời,
+                                        phân biệt rõ với tin nhắn người thật */
+  --accent-ai-foreground: 0 0% 100%;
+
+  --online: 142 71% 45%;            /* Emerald — chấm trạng thái online */
+  --offline: 240 5% 65%;            /* Slate nhạt — chấm trạng thái offline */
+
+  --voice-active: 142 71% 45%;      /* viền/ring xanh khi đang nói trong voice call */
+  --mention: 38 92% 50%;            /* Amber — highlight khi bị @mention */
+
+  --destructive: 347 77% 50%;       /* Rose — xoá, ban, rời server, lỗi */
+  --destructive-foreground: 0 0% 100%;
+  --success: 160 84% 39%;           /* Emerald — hành động thành công */
+  --warning: 38 92% 50%;            /* Amber — cảnh báo, đang xử lý */
+
+  --border: 240 6% 90%;
+  --input: 240 6% 90%;
+  --ring: 250 84% 60%;              /* focus ring — trùng primary */
+  --radius: 0.75rem;                /* 12px */
+}
+
+.dark {
+  --background: 240 10% 8%;
+  --foreground: 240 5% 96%;
+  --card: 240 8% 12%;
+  --card-foreground: 240 5% 96%;
+  --sidebar: 240 10% 6%;            /* sidebar tối hơn nữa, giống Discord dark mode */
+  --primary: 250 84% 68%;
+  --muted: 240 6% 18%;
+  --muted-foreground: 240 5% 65%;
+  --border: 240 6% 20%;
+  /* accent-ai, online, offline, destructive, success, warning: giữ nguyên hoặc
+     tăng nhẹ lightness (+5-8%) để đủ tương phản trên nền tối */
+}
+```
+
+Dark mode NÊN ưu tiên làm sớm cho SFF (không chỉ "để dành") — vì đây là app chat/
+cộng đồng, người dùng thực tế của thể loại này kỳ vọng có dark mode mặc định
+(giống Discord/Slack) nhiều hơn các loại app khác. Nếu thời gian cho phép, dark
+mode nên là theme mặc định, light mode là tuỳ chọn.
+
+## Animation
+
+- **Web**: **Motion** (`npm install motion`) cho:
+  - Tin nhắn mới xuất hiện: slide-up + fade nhẹ (150-200ms)
+  - Chuyển đổi giữa server/channel: fade nhanh
+  - Tin nhắn AI Persona trả lời: hiệu ứng "đang gõ" (typing dots) trước khi hiện
+    nội dung, tạo cảm giác tự nhiên
+  - Danh sách server/channel: stagger khi load lần đầu
+  - Ring hiệu ứng pulse quanh avatar khi đang nói trong voice call
+  - Toast/notification: slide-in từ góc
+- **Mobile**: **Moti** (dựng trên Reanimated) cho hiệu ứng tương đương: tin nhắn
+  mới, chuyển màn hình, pulse khi đang nói, pull-to-refresh.
+- Animation có MỤC ĐÍCH — không lạm dụng. Tôn trọng `prefers-reduced-motion`.
+
+## Font & Spacing
+- Font: **Inter** (`@fontsource/inter` web, `expo-font` mobile) — hỗ trợ tốt
+  tiếng Việt.
+- Spacing: thang Tailwind mặc định (4px base).
+- Bo góc: `rounded-xl` (12px) cho card/bubble tin nhắn/button, `rounded-full`
+  cho avatar/badge trạng thái online.
+- Bubble tin nhắn: bo góc lớn hơn ở 3 cạnh, góc gần avatar người gửi bo nhỏ hơn
+  (kiểu iMessage/Discord) để tạo cảm giác "luồng hội thoại" tự nhiên.
+
+## Nguyên tắc UX/UI đặc thù cho app chat/cộng đồng
+
+- **Phân biệt tin nhắn AI Persona**: LUÔN dùng `--accent-ai` (viền hoặc nền nhạt)
+  + icon/badge nhỏ "AI" cạnh tên người gửi, để không gây nhầm lẫn với tin nhắn
+  người thật — đây là yêu cầu UX bắt buộc, không phải tuỳ chọn.
+- **Trạng thái online/offline**: chấm tròn nhỏ góc dưới-phải avatar, màu
+  `--online`/`--offline`, cập nhật realtime qua Socket.io.
+- **@mention**: highlight nền `--mention` nhạt cho đoạn text được mention, kèm
+  thông báo riêng biệt trong danh sách Notification.
+- **Hành động phá huỷ** (xoá server, kick/ban thành viên, xoá tin nhắn): dùng
+  AlertDialog (shadcn/RNR) xác nhận rõ ràng, mô tả hậu quả cụ thể trong dialog
+  (VD: "Xoá server sẽ xoá toàn bộ channel và lịch sử tin nhắn, không thể hoàn
+  tác").
+- **Voice call UI**: hiển thị rõ ai đang nói (ring pulse quanh avatar dùng
+  `--voice-active`), trạng thái mic/cam tắt-bật rõ ràng bằng icon, nút chia sẻ
+  màn hình nổi bật khi đang active.
+- **Empty state**: server chưa có channel, channel chưa có tin nhắn, server
+  chưa nạp tài liệu AI — mỗi trường hợp đều có minh hoạ + gợi ý hành động cụ thể.
+- **Loading**: Skeleton (shimmer) cho danh sách tin nhắn/server khi tải lần đầu,
+  spinner nhỏ cho action button.
+- **Toast** (sonner / sonner-native): góc trên phải (web) / trên cùng (mobile),
+  tự ẩn 3-4 giây.
+
+## Responsive & Accessibility
+- Web: mobile-first, breakpoint Tailwind chuẩn.
+- Mobile: test tối thiểu 1 thiết bị/simulator thật trước khi coi 1 màn hình
+  "xong", không chỉ tin vào build pass.
+- Ảnh có mô tả thay thế (alt/accessibilityLabel). Input có label rõ ràng.
+- Vùng chạm tối thiểu 44x44px. Contrast đạt chuẩn WCAG AA.
+
+## Icon
+**lucide-react** (web) và **lucide-react-native** (mobile) — cùng 1 bộ icon,
+cùng tên gọi.

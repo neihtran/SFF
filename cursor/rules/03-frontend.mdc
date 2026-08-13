@@ -1,0 +1,57 @@
+---
+description: Quy tắc code frontend React + Vite — component (shadcn/ui), state management, API layer, animation
+globs: frontend/**
+alwaysApply: true
+---
+
+# Frontend rules (React + Vite + shadcn/ui)
+
+## Naming
+- Component file: PascalCase.tsx — PostCard.tsx, OwnershipVerifyForm.tsx
+- Hook file: camelCase.ts, bắt đầu bằng use — usePosts.ts, useSocket.ts
+- Luôn function component + TypeScript props interface rõ ràng, KHÔNG dùng any.
+
+## Component structure
+- components/ui/: CHỈ chứa component do shadcn CLI sinh ra (`npx shadcn add ...`)
+  — KHÔNG tự viết tay Button/Input/Card/Dialog/Toast từ đầu, luôn ưu tiên thêm
+  qua CLI rồi tuỳ biến className/variant. Nếu cần 1 biến thể đặc thù cho
+  SmartFind (VD: badge màu accent-lost/accent-found), tạo wrapper nhỏ bọc ngoài
+  component shadcn gốc, đặt trong components/ui/ luôn (VD: StatusBadge.tsx bọc
+  quanh Badge của shadcn).
+- features/<feature>/components/: component có business logic riêng của
+  feature, có thể gọi hook/API, được XÂY từ các block shadcn/ui trong
+  components/ui/.
+- pages/: chỉ ghép layout + gọi feature-component lại với nhau.
+- Component quá 200 dòng → tách nhỏ thêm.
+- Tách logic phức tạp ra custom hook, không để lẫn trong JSX.
+
+## Form & Validation
+- Dùng shadcn `Form` component (bọc sẵn react-hook-form) kết hợp **zod** để định
+  nghĩa schema validate — KHÔNG tự viết validate thủ công bằng if/else rải rác.
+  Đặt schema zod trong file riêng (VD: features/posts/schemas/postSchema.ts) để
+  dễ tái sử dụng/tham chiếu khi làm mobile.
+- Cài `zod` và `@hookform/resolvers` nếu chưa có.
+
+## State management
+- State cục bộ (form, toggle UI) → useState/useReducer tại chỗ.
+- State toàn cục cần chia sẻ (user đăng nhập, thông báo chưa đọc) → Zustand
+  store trong store/.
+- Dữ liệu từ API → TanStack Query (React Query), tránh gọi API lặp lại thủ công
+  bằng useEffect.
+- KHÔNG dùng Redux.
+
+## API layer
+- Mỗi feature có 1 file api/xxxApi.ts chứa các hàm gọi axios, KHÔNG gọi
+  axios.get(...) trực tiếp trong component.
+- lib/axiosClient.ts: 1 instance axios duy nhất, interceptor tự gắn JWT + tự
+  refresh token khi 401.
+
+## Animation
+- Dùng thư viện `motion` (Motion, trước đây Framer Motion) cho chuyển trang,
+  stagger list, hover/tap micro-interaction, hiệu ứng khoảnh khắc quan trọng
+  (match CONFIRMED). Theo đúng nguyên tắc "có chủ đích, không lạm dụng" ở
+  04-design-system.mdc.
+
+## Icon
+Dùng `lucide-react` cho mọi icon — không trộn lẫn nhiều bộ icon khác nhau
+trong cùng project.

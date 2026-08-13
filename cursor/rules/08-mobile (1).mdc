@@ -1,0 +1,78 @@
+---
+description: Quy tắc code Mobile app (React Native + Expo) — cấu trúc, component, đồng bộ với web
+globs: mobile/**
+alwaysApply: true
+---
+
+# Mobile rules (React Native + Expo)
+
+## Stack
+- **Expo** (managed workflow) + **Expo Router** (file-based navigation, tương tự
+  Next.js App Router — quen thuộc nếu đã làm web) + TypeScript.
+- **NativeWind** (Tailwind cho React Native) — dùng CHUNG bảng màu HSL đã định
+  nghĩa trong 04-design-system.mdc, copy đúng giá trị token màu sang file cấu
+  hình NativeWind (`tailwind.config.js` của mobile), không tự nghĩ ra màu khác.
+- **React Native Reusables** — bản port shadcn/ui cho mobile, cài qua CLI tương
+  ứng, dùng đúng tên component song song với web (Button, Card, Dialog, Avatar,
+  Badge, Skeleton, Tabs...) để dễ đối chiếu code khi làm cả 2 nền tảng.
+- **React Native Reanimated** (hoặc Moti) cho animation.
+- **TanStack Query** + **Zustand** — GIỐNG HỆT cách quản lý state của web, để
+  logic gọi API và cache nhất quán giữa 2 nền tảng.
+- **Axios** — dùng lại gần như nguyên bản logic interceptor JWT/refresh token
+  của web (lib/axiosClient.ts), chỉ khác nơi lưu token: dùng `expo-secure-store`
+  thay vì lưu qua Zustand persist + localStorage như web (mobile cần lưu token
+  an toàn hơn, không dùng AsyncStorage thường cho access/refresh token).
+
+## Cấu trúc thư mục
+
+```
+mobile/
+├── app/                        # Expo Router — file-based routing
+│   ├── (auth)/
+│   │   ├── login.tsx
+│   │   └── register.tsx
+│   ├── (tabs)/                 # bottom tab navigation chính
+│   │   ├── index.tsx           # Trang chủ
+│   │   ├── posts.tsx           # Danh sách tin
+│   │   ├── create.tsx          # Đăng tin (hoặc modal riêng)
+│   │   ├── matches.tsx         # Gợi ý ghép cặp
+│   │   └── profile.tsx         # Hồ sơ
+│   ├── posts/[id].tsx          # Chi tiết post
+│   ├── matches/[id].tsx        # Chi tiết match + verification flow
+│   └── _layout.tsx
+├── components/
+│   ├── ui/                     # component từ React Native Reusables CLI
+│   └── layout/
+├── features/                   # CÙNG CẤU TRÚC với frontend/src/features/
+│   ├── auth/ (components/, hooks/, api/, types.ts)
+│   ├── posts/
+│   ├── matching/
+│   └── users/
+├── lib/                        # axiosClient.ts, secureStorage.ts, utils.ts
+├── store/                      # Zustand — cùng logic với web (authStore.ts...)
+└── tailwind.config.js          # copy đúng token màu từ 04-design-system.mdc
+```
+
+## Nguyên tắc dùng chung code với Web
+- **Types**: nếu thời gian cho phép, cân nhắc tách `types.ts` của mỗi feature
+  (Post, Match, User...) ra 1 package dùng chung (VD: thư mục `shared/` ở root
+  monorepo) để không phải định nghĩa lại 2 lần — KHÔNG bắt buộc nếu làm tăng độ
+  phức tạp setup quá nhiều so với thời gian còn lại, có thể chấp nhận duplicate
+  types giữa web/mobile cho đơn giản.
+- **Logic nghiệp vụ** (hooks gọi API, mutation, validate zod schema): giữ Y HỆT
+  tên hàm, cấu trúc file như bên `frontend/src/features/` để dễ đối chiếu, dù
+  không share trực tiếp code (do khác nhau về UI primitives).
+- **API base URL**: đọc từ biến môi trường Expo (`app.config.ts` + `.env`), trỏ
+  cùng 1 backend NestJS như web — KHÔNG dựng API riêng cho mobile.
+
+## Bảo mật riêng cho Mobile
+- Access token + refresh token lưu bằng `expo-secure-store` (mã hoá native),
+  không lưu bằng AsyncStorage thường.
+- Không hardcode API URL production — dùng biến môi trường, có thể khác giữa
+  bản dev (kết nối localhost qua Expo Go/tunnel) và bản build thật.
+
+## Testing trên thiết bị
+- Dùng Expo Go để test nhanh trong lúc dev.
+- Trước khi coi 1 tính năng "xong", test tối thiểu trên 1 thiết bị/simulator
+  thật (không chỉ tin vào việc build không lỗi) — điện thoại có nhiều khác biệt
+  về UX chạm/scroll so với web mà chỉ test trên trình duyệt không phát hiện ra.

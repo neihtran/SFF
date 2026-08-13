@@ -1,0 +1,91 @@
+---
+description: Quy tắc code backend NestJS cho SFF — naming, DTO, controller/service, Prisma, AI/RAG, LiveKit, bảo mật
+globs: backend/**
+alwaysApply: true
+---
+
+# Backend rules (NestJS) — SFF
+
+## Naming
+- File: kebab-case — server-members.service.ts, create-channel.dto.ts
+- Class: PascalCase — ServersService, CreateChannelDto
+- Route path: số nhiều, kebab-case, không dùng verb trong URL
+
+## DTO & Validation
+- MỌI input từ client phải có DTO riêng với class-validator decorators.
+- ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })
+  global trong main.ts.
+
+## Controller / Service pattern
+- Controller: CHỈ routing + decorator + gọi Service. KHÔNG chứa business logic.
+- Service: chứa toàn bộ logic nghiệp vụ.
+- Không gọi PrismaService trực tiếp từ Controller.
+- Đầy đủ @ApiOperation()/@ApiResponse() cho Swagger.
+
+## Cấu trúc module bắt buộc (modules/)
+
+| Module | Trách nhiệm |
+|---|---|
+| auth | Register/login/refresh/me, JWT strategy |
+| users | Cập nhật hồ sơ, avatar |
+| servers | Tạo/tham gia/rời server, invite code |
+| server-members | Quản lý vai trò, kick, ban |
+| channels | CRUD channel (TEXT/VOICE/DM) |
+| messages | CRUD tin nhắn, đính kèm, reaction |
+| chat-gateway | Socket.io — realtime tin nhắn, typing, online status |
+| ai | Gemini API: embedding, RAG persona, semantic search, tóm tắt, dịch thuật |
+| voice | Cấp token LiveKit, quản lý phiên gọi |
+| notifications | Thông báo mention/DM/invite/AI reply |
+| storage | Upload/xoá file trên Supabase Storage (dùng chung nhiều module) |
+
+## Quy tắc phân quyền theo Server Role (áp dụng mọi module liên quan tới server)
+- 3 cấp: OWNER > MODERATOR > MEMBER.
+- OWNER: toàn quyền (xoá server, đổi role người khác, quản lý AI Documents).
+- MODERATOR: kick/ban thành viên thường, xoá tin nhắn vi phạm, tạo/xoá channel.
+- MEMBER: chỉ thao tác trên nội dung của chính mình (sửa/xoá tin nhắn của mình).
+- Viết 1 Guard dùng chung (`ServerRoleGuard` + decorator `@RequireServerRole(...)`)
+  áp dụng nhất quán cho mọi endpoint cần kiểm tra quyền theo server, KHÔNG lặp
+  lại logic kiểm tra role thủ công trong từng service.
+
+## Prisma & Database
+- Chỉ dùng $queryRaw/$executeRaw cho việc Prisma không hỗ trợ (truy vấn pgvector
+  <->/<=>). Raw query pgvector tập trung trong modules/ai/ai.service.ts, không
+  rải rác nhiều nơi.
+- Dùng prisma.$transaction khi 1 hành động ghi vào ≥2 bảng (VD: tạo Server + tạo
+  ServerMember role=OWNER cho người tạo, trong cùng 1 transaction).
+- Migration đặt tên rõ nghĩa.
+
+## AI & RAG Pipeline (modules/ai/)
+- `ai.service.ts` CHỈ gọi Gemini API (generateEmbedding, generateChatCompletion,
+  translateText) — không chứa logic nghiệp vụ RAG.
+- `rag.service.ts` (tách riêng): chịu trách nhiệm chunking văn bản tài liệu,
+  truy hồi top-k chunk liên quan qua pgvector, ghép ngữ cảnh gửi cho AiService.
+- Sinh embedding cho MỌI tin nhắn mới PHẢI chạy nền (fire-and-forget), không
+  chặn response gửi tin nhắn — lỗi AI chỉ log, không làm fail việc gửi tin.
+- Model dùng: `gemini-embedding-001` (768 dim, PHẢI L2-normalize khi dùng
+  outputDimensionality khác mặc định 3072) cho mọi tác vụ embedding (tin nhắn
+  VÀ document chunks — dùng chung 1 model để đảm bảo cùng không gian vector,
+  so sánh được với nhau).
+- Ngưỡng similarity, số chunk truy hồi (top-k), kích thước chunk: đặt hằng số
+  trong config/constants.ts, không hardcode trong service.
+
+## Voice/Video (modules/voice/)
+- Backend CHỈ cấp access token LiveKit (xác thực identity + quyền vào room),
+  KHÔNG tự xử lý luồng audio/video/màn hình — toàn bộ media traffic đi thẳng
+  giữa client và LiveKit server, không qua Backend NestJS.
+- Room name LiveKit = channel.id (channel type VOICE) — đảm bảo mapping rõ ràng
+  1-1 giữa channel và phòng gọi.
+- Constraint chất lượng (720p/30fps mặc định) thiết lập ở phía CLIENT khi gọi
+  getDisplayMedia — Backend chỉ cần đảm bảo mọi user đều nhận đúng token, không
+  cần enforce chất lượng phía server trong phạm vi 6 tuần (không có hệ thống VIP).
+
+## Error handling
+- Dùng exception có sẵn của Nest (NotFoundException, ForbiddenException...).
+- HttpExceptionFilter global format lỗi thống nhất.
+- Không để lộ chi tiết lỗi nội bộ ra response.
+
+## Bảo mật
+- Mật khẩu bcrypt salt round ≥ 10. Refresh token lưu hash.
+- helmet(), CORS chỉ cho phép domain frontend + mobile thật ở production.
+- Rate limit /auth/*, POST /channels/:id/messages (chống spam tin nhắn hàng loạt).
+- Không log token/API key/password ra console.
