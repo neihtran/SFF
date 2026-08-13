@@ -1,16 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import type { Channel } from '@prisma/client';
-
-import { CreateChannelDto } from './dto';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateChannelDto } from './dto/create-channel.dto';
+import { ChannelResponseDto } from './dto/channel-response.dto';
 
 @Injectable()
 export class ChannelsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── Create Channel ─────────────────────────────────────────
-
-  async create(serverId: string, dto: CreateChannelDto): Promise<Channel> {
+  async create(
+    serverId: string,
+    dto: CreateChannelDto,
+  ): Promise<ChannelResponseDto> {
     return this.prisma.channel.create({
       data: {
         serverId,
@@ -20,34 +24,37 @@ export class ChannelsService {
     });
   }
 
-  // ── Get Channels for Server ─────────────────────────────────
-
-  async findByServer(serverId: string): Promise<Channel[]> {
+  async findByServer(serverId: string): Promise<ChannelResponseDto[]> {
     return this.prisma.channel.findMany({
       where: { serverId },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  // ── Get One Channel ──────────────────────────────────────────
-
-  async findOne(channelId: string): Promise<Channel> {
+  async findOne(channelId: string, serverId: string): Promise<ChannelResponseDto> {
     const channel = await this.prisma.channel.findUnique({
       where: { id: channelId },
     });
-    if (!channel) throw new NotFoundException('Channel không tồn tại');
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
     return channel;
   }
 
-  // ── Delete Channel ───────────────────────────────────────────
-
-  async delete(serverId: string, channelId: string): Promise<void> {
-    const channel = await this.prisma.channel.findFirst({
-      where: { id: channelId, serverId },
+  async delete(channelId: string, serverId: string): Promise<void> {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
     });
-    if (!channel)
-      throw new NotFoundException('Channel không tồn tại trong server này');
 
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    if (channel.serverId !== serverId) {
+      throw new ForbiddenException('Channel does not belong to this server');
+    }
+
+    // Cascade xoá: messages → attachments, reactions, embeddings, translations
     await this.prisma.channel.delete({ where: { id: channelId } });
   }
 }

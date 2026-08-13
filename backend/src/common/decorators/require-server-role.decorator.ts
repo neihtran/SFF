@@ -1,25 +1,16 @@
 import { SetMetadata } from '@nestjs/common';
+import { ServerRole } from '@prisma/client';
 
-export type MinRole = 'OWNER' | 'MODERATOR' | 'MEMBER';
+export const REQUIRED_ROLE_KEY = 'requiredServerRole';
 
-export const MIN_ROLE_KEY = 'minRole';
-export const REQUIRE_MEMBERSHIP_KEY = 'requireMembership';
-
-export function RequireServerRole(
-  role: MinRole,
-  requireMembership = true,
-): MethodDecorator {
-  return (
-    target: object,
-    propertyKey: string | symbol,
-    descriptor: PropertyDescriptor,
-  ) => {
-    SetMetadata(MIN_ROLE_KEY, role)(target, propertyKey, descriptor);
-    SetMetadata(REQUIRE_MEMBERSHIP_KEY, requireMembership)(
-      target,
-      propertyKey,
-      descriptor,
-    );
-    return descriptor;
-  };
-}
+/**
+ * Decorator đánh dấu endpoint cần role tối thiểu trong server.
+ * Ví dụ: @RequireServerRole('MODERATOR') → cho phép OWNER hoặc MODERATOR.
+ *
+ * Thứ tự ưu tiên: OWNER > MODERATOR > MEMBER
+ *
+ * Lưu ý: ServerRoleGuard cần PrismaService → guard đặt trong guards/
+ * thay vì decorators/ (decorators chỉ set metadata, không inject được service).
+ */
+export const RequireServerRole = (role: ServerRole) =>
+  SetMetadata(REQUIRED_ROLE_KEY, role);

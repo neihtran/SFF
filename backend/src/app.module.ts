@@ -5,8 +5,8 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from './common/common.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { UsersModule } from './modules/users/users.module';
 import { ServersModule } from './modules/servers/servers.module';
 import { ServerMembersModule } from './modules/server-members/server-members.module';
@@ -27,9 +27,10 @@ import { StorageModule } from './modules/storage/storage.module';
     }),
     ThrottlerModule.forRoot([
       { name: 'short', ttl: 1000, limit: 5 },
-      { name: 'long', ttl: 60000, limit: 100 },
+      { name: 'long', ttl: 60_000, limit: 100 },
     ]),
     PrismaModule,
+    CommonModule,
     AuthModule,
     UsersModule,
     ServersModule,
@@ -42,9 +43,6 @@ import { StorageModule } from './modules/storage/storage.module';
     NotificationsModule,
     StorageModule,
   ],
-  providers: [
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

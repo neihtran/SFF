@@ -1,14 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength } from 'class-validator';
 
 export class CreateServerDto {
-  @ApiProperty({ example: 'Server Tiếng Việt' })
+  @ApiProperty({ example: 'Gaming Hub' })
   @IsString()
+  @MinLength(2)
   @MaxLength(100)
   name!: string;
 
-  @ApiPropertyOptional({ example: 'https://...' })
-  @IsString()
+  @ApiPropertyOptional({ example: 'https://example.com/icon.png' })
   @IsOptional()
+  @IsString()
+  @MaxLength(500)
   iconUrl?: string;
 }

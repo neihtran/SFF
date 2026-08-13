@@ -1,12 +1,6 @@
-import {
-  Injectable,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
-
-export const IS_PUBLIC_KEY = 'isPublic';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -15,21 +9,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   canActivate(context: ExecutionContext) {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+    const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (isPublic) return true;
-    return super.canActivate(context);
-  }
-
-  handleRequest<TUser>(err: Error | null, user: TUser): TUser {
-    if (err || !user) {
-      throw (
-        err ??
-        new UnauthorizedException('Chưa đăng nhập hoặc token không hợp lệ')
-      );
+    if (isPublic) {
+      return true;
     }
-    return user;
+    return super.canActivate(context);
   }
 }

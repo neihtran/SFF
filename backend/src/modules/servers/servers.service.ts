@@ -1,209 +1,190 @@
 import {
-  ConflictException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  Logger,
 } from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { nanoid } from 'nanoid';
-import type { Server, ServerMember, User } from '@prisma/client';
-
-import { CreateServerDto, JoinServerDto } from './dto';
+import { randomBytes } from 'node:crypto';
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateServerDto } from './dto/create-server.dto';
+import { ServerResponseDto } from './dto/server-response.dto';
 
 @Injectable()
 export class ServersService {
+  private readonly logger = new Logger(ServersService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── Create ───────────────────────────────────────────────────
-
+  // ─── Create ────────────────────────────────────────────────
   async create(
-    dto: CreateServerDto,
     userId: string,
-  ): Promise<ServerWithMember> {
-    let inviteCode = nanoid(8);
+    dto: CreateServerDto,
+  ): Promise<ServerResponseDto> {
+    const inviteCode = this.generateInviteCode();
 
-    // Đảm bảo invite code unique
-    let exists = await this.prisma.server.findUnique({ where: { inviteCode } });
-    while (exists) {
-      inviteCode = nanoid(8);
-      exists = await this.prisma.server.findUnique({ where: { inviteCode } });
-    }
+    const server = await this.prisma.$transaction(async (tx) => {
+      const s = await tx.server.create({
+        data: {
+          name: dto.name,
+          iconUrl: dto.iconUrl,
+          ownerId: userId,
+          inviteCode,
+        },
+      });
 
-    const server = await this.prisma.server.create({
-      data: {
-        name: dto.name,
-        iconUrl: dto.iconUrl,
-        ownerId: userId,
-        inviteCode,
-        members: {
-          create: { userId, role: 'OWNER' },
+      // Owner tự động là thành viên với role OWNER
+      await tx.serverMember.create({
+        data: {
+          serverId: s.id,
+          userId,
+          role: 'OWNER',
         },
-      },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, avatarUrl: true },
-            },
-          },
-        },
-      },
+      });
+
+      return s;
     });
+
+    this.logger.log(`Server "${server.name}" (${server.id}) created by user ${userId}`);
 
     return server;
   }
 
-  // ── Find Mine ────────────────────────────────────────────────
-
-  async findMine(userId: string): Promise<ServerWithMember[]> {
+  // ─── Find Mine ─────────────────────────────────────────────
+  async findMine(userId: string): Promise<ServerResponseDto[]> {
     const memberships = await this.prisma.serverMember.findMany({
-      where: { userId, status: 'ACTIVE' },
+      where: {
+        userId,
+        status: 'ACTIVE',
+      },
       include: {
         server: {
-          include: {
-            members: {
-              include: {
-                user: { select: { id: true, name: true, avatarUrl: true } },
-              },
-            },
+          select: {
+            id: true,
+            name: true,
+            iconUrl: true,
+            inviteCode: true,
+            createdAt: true,
           },
         },
       },
+      orderBy: { joinedAt: 'asc' },
     });
 
-    return memberships
-      .filter((m) => m.server !== null)
-      .map((m) => ({
-        ...m.server,
-        members: m.server.members,
-      })) as ServerWithMember[];
+    return memberships.map((m) => m.server);
   }
 
-  // ── Find One ─────────────────────────────────────────────────
-
-  async findOne(serverId: string): Promise<ServerWithMember> {
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, avatarUrl: true },
-            },
-          },
-        },
+  // ─── Find One ───────────────────────────────────────────────
+  async findOne(serverId: string, userId: string): Promise<ServerResponseDto> {
+    const membership = await this.prisma.serverMember.findUnique({
+      where: {
+        serverId_userId: { serverId, userId },
       },
     });
 
-    if (!server) throw new NotFoundException('Server không tồn tại');
+    if (!membership || membership.status === 'BANNED') {
+      throw new ForbiddenException('You are not a member of this server');
+    }
+
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+    });
+
+    if (!server) {
+      throw new NotFoundException('Server not found');
+    }
+
     return server;
   }
 
-  // ── Join by invite code ─────────────────────────────────────
-
-  async join(dto: JoinServerDto, userId: string): Promise<ServerWithMember> {
+  // ─── Join by Invite Code ───────────────────────────────────
+  async join(
+    userId: string,
+    inviteCode: string,
+  ): Promise<ServerResponseDto> {
     const server = await this.prisma.server.findUnique({
-      where: { inviteCode: dto.inviteCode },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, avatarUrl: true },
-            },
-          },
-        },
-      },
+      where: { inviteCode },
     });
 
-    if (!server) throw new NotFoundException('Mã invite không hợp lệ');
-
-    const existing = server.members.find((m) => m.userId === userId);
-    if (existing) {
-      if (existing.status === 'BANNED') {
-        throw new ForbiddenException('Bạn đã bị cấm khỏi server này');
-      }
-      throw new ConflictException('Bạn đã là thành viên của server này');
+    if (!server) {
+      throw new NotFoundException('Invalid invite code');
     }
 
-    const updated = await this.prisma.server.update({
-      where: { id: server.id },
-      data: {
-        members: { create: { userId, role: 'MEMBER' } },
-      },
-      include: {
-        members: {
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, avatarUrl: true },
-            },
-          },
-        },
+    const existing = await this.prisma.serverMember.findUnique({
+      where: {
+        serverId_userId: { serverId: server.id, userId },
       },
     });
 
-    return updated;
+    if (existing?.status === 'BANNED') {
+      throw new ForbiddenException('You are banned from this server');
+    }
+
+    if (existing) {
+      throw new ConflictException('You are already a member of this server');
+    }
+
+    await this.prisma.serverMember.create({
+      data: {
+        serverId: server.id,
+        userId,
+        role: 'MEMBER',
+      },
+    });
+
+    this.logger.log(`User ${userId} joined server ${server.id} via invite code`);
+
+    return server;
   }
 
-  // ── Leave ────────────────────────────────────────────────────
-
+  // ─── Leave ─────────────────────────────────────────────────
   async leave(serverId: string, userId: string): Promise<void> {
     const membership = await this.prisma.serverMember.findUnique({
-      where: { serverId_userId: { serverId, userId } },
+      where: {
+        serverId_userId: { serverId, userId },
+      },
     });
 
-    if (!membership)
-      throw new NotFoundException('Bạn không phải thành viên của server');
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
 
     if (membership.role === 'OWNER') {
       throw new ForbiddenException(
-        'Chủ sở hữu không thể rời server. Hãy chuyển quyền hoặc xoá server.',
+        'Owner cannot leave. Transfer ownership to another member or delete the server.',
       );
     }
 
     await this.prisma.serverMember.delete({
       where: { serverId_userId: { serverId, userId } },
     });
+
+    this.logger.log(`User ${userId} left server ${serverId}`);
   }
 
-  // ── Regenerate Invite Code ───────────────────────────────────
-
+  // ─── Regenerate Invite Code ────────────────────────────────
   async regenerateInviteCode(
     serverId: string,
     userId: string,
   ): Promise<{ inviteCode: string }> {
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId },
-    });
-    if (!server) throw new NotFoundException('Server không tồn tại');
-
-    if (server.ownerId !== userId) {
-      throw new ForbiddenException('Chỉ chủ sở hữu mới có thể đổi mã invite');
-    }
-
-    let newCode = nanoid(8);
-    let exists = await this.prisma.server.findUnique({
-      where: { inviteCode: newCode },
-    });
-    while (exists) {
-      newCode = nanoid(8);
-      exists = await this.prisma.server.findUnique({
-        where: { inviteCode: newCode },
-      });
-    }
+    // Ownership check done by ServerRoleGuard
+    const newCode = this.generateInviteCode();
 
     await this.prisma.server.update({
       where: { id: serverId },
       data: { inviteCode: newCode },
     });
 
+    this.logger.log(`Invite code regenerated for server ${serverId}`);
+
     return { inviteCode: newCode };
   }
+
+  // ─── Helpers ────────────────────────────────────────────────
+  private generateInviteCode(length = 8): string {
+    return randomBytes(length)
+      .toString('base64url')
+      .slice(0, length)
+      .toUpperCase();
+  }
 }
-
-// ── Type helpers ────────────────────────────────────────────────
-
-export type ServerWithMember = Server & {
-  members: (ServerMember & {
-    user: Pick<User, 'id' | 'name' | 'email' | 'avatarUrl'>;
-  })[];
-};

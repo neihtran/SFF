@@ -1,44 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'Nguyễn Văn A', description: 'Tên hiển thị' })
+  @ApiProperty({ example: 'Nguyễn Văn A' })
   @IsString()
-  @IsNotEmpty()
+  @MinLength(2)
   @MaxLength(100)
   name!: string;
 
-  @ApiProperty({
-    example: 'a@example.com',
-    description: 'Email duy nhất trong hệ thống',
-  })
+  @ApiProperty({ example: 'a@example.com' })
   @IsEmail()
-  @IsNotEmpty()
   email!: string;
 
-  @ApiProperty({
-    example: 'StrongPass123!',
-    description: 'Mật khẩu (≥8 ký tự)',
-  })
+  @ApiProperty({ example: 'SecurePass123!' })
   @IsString()
-  @IsNotEmpty()
   @MinLength(8)
   @MaxLength(128)
   password!: string;
-
-  @ApiProperty({
-    example: 'vi',
-    required: false,
-    description: 'Ngôn ngữ ưu tiên (ISO 639-1)',
-  })
-  @IsString()
-  @IsOptional()
-  preferredLang?: string;
 }

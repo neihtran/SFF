@@ -68,10 +68,7 @@ export function validateEnv(config: Record<string, unknown>): EnvVars {
   if (errors.length > 0) {
     throw new Error(
       `Environment validation failed:\n${errors
-        .map(
-          (err) =>
-            `${err.property}: ${Object.values(err.constraints ?? {}).join(', ')}`,
-        )
+        .map((err) => `${err.property}: ${Object.values(err.constraints ?? {}).join(', ')}`)
         .join('\n')}`,
     );
   }

@@ -2,13 +2,12 @@ import { Module } from '@nestjs/common';
 
 import { ChannelsController } from './channels.controller';
 import { ChannelsService } from './channels.service';
-import { PrismaModule } from '@/prisma/prisma.module';
-import { ServerRoleGuard } from '@/common/guards/server-role.guard';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [CommonModule],
   controllers: [ChannelsController],
-  providers: [ChannelsService, ServerRoleGuard],
+  providers: [ChannelsService],
   exports: [ChannelsService],
 })
 export class ChannelsModule {}

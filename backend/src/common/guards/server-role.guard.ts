@@ -1,19 +1,25 @@
 import {
+  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  Injectable,
-  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { ServerRole } from '@prisma/client';
 
-import { PrismaService } from '@/prisma/prisma.service';
-import { isRoleAtLeast } from '@/common/types/server-role.enum';
-import {
-  MIN_ROLE_KEY,
-  REQUIRE_MEMBERSHIP_KEY,
-  type MinRole,
-} from '@/common/decorators/require-server-role.decorator';
+import { PrismaService } from '../../prisma/prisma.service';
+import { REQUIRED_ROLE_KEY } from '../decorators/require-server-role.decorator';
+
+/**
+ * Role priority: OWNER > MODERATOR > MEMBER
+ * Higher number = more privilege.
+ */
+const ROLE_RANK: Record<ServerRole, number> = {
+  OWNER: 3,
+  MODERATOR: 2,
+  MEMBER: 1,
+};
 
 @Injectable()
 export class ServerRoleGuard implements CanActivate {
@@ -22,65 +28,64 @@ export class ServerRoleGuard implements CanActivate {
     private readonly prisma: PrismaService,
   ) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const minRole = this.reflector.get<MinRole>(
-      MIN_ROLE_KEY,
-      context.getHandler(),
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    const requiredRole = this.reflector.getAllAndOverride<ServerRole>(
+      REQUIRED_ROLE_KEY,
+      [ctx.getHandler(), ctx.getClass()],
     );
-    if (!minRole) return true; // Không yêu cầu kiểm tra role
 
-    const requireMembership =
-      this.reflector.get<boolean>(
-        REQUIRE_MEMBERSHIP_KEY,
-        context.getHandler(),
-      ) ?? true;
+    // Nếu endpoint không có @RequireServerRole → cho qua (đã có JwtAuthGuard check auth)
+    if (!requiredRole) return true;
 
-    const request = context.switchToHttp().getRequest<{
-      user?: { id: string };
-      params: Record<string, string>;
-    }>();
-    const currentUserId = request.user?.id;
-    if (!currentUserId) throw new ForbiddenException('Chưa đăng nhập');
+    const request = ctx.switchToHttp().getRequest();
+    const user = request.user as { id: string } | undefined;
 
-    // serverId có thể nằm ở :id hoặc :serverId tùy route
+    if (!user?.id) {
+      throw new UnauthorizedException('Not authenticated');
+    }
+
+    // serverId có thể nằm ở nhiều param khác nhau tùy route
     const serverId =
-      request.params['id'] ??
-      request.params['serverId'] ??
-      request.params['server_id'];
+      request.params?.serverId ??
+      request.params?.id ??
+      request.params?.server_id;
 
     if (!serverId) {
-      throw new ForbiddenException('Thiếu tham số server ID');
+      // Nếu param không có serverId → guard không áp dụng (có thể route không phải server-scoped)
+      // Hoặc serverId nằm trong body/query (không phổ biến trong SFF)
+      throw new ForbiddenException(
+        'ServerRoleGuard: serverId not found in route params',
+      );
     }
 
-    // 1. Server phải tồn tại
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId },
+    const membership = await this.prisma.serverMember.findUnique({
+      where: {
+        serverId_userId: {
+          serverId,
+          userId: user.id,
+        },
+      },
     });
-    if (!server) throw new NotFoundException('Server không tồn tại');
 
-    // 2. Kiểm tra thành viên (nếu cần)
-    if (requireMembership) {
-      const membership = await this.prisma.serverMember.findUnique({
-        where: { serverId_userId: { serverId, userId: currentUserId } },
-      });
-
-      if (!membership) {
-        throw new ForbiddenException(
-          'Bạn không phải thành viên của server này',
-        );
-      }
-
-      if (membership.status === 'BANNED') {
-        throw new ForbiddenException('Bạn đã bị cấm khỏi server này');
-      }
-
-      // 3. So sánh role
-      if (!isRoleAtLeast(membership.role, minRole)) {
-        throw new ForbiddenException(
-          `Cần quyền ${minRole} trở lên để thực hiện hành động này`,
-        );
-      }
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this server');
     }
+
+    if (membership.status === 'BANNED') {
+      throw new ForbiddenException('You are banned from this server');
+    }
+
+    const userRank = ROLE_RANK[membership.role];
+    const requiredRank = ROLE_RANK[requiredRole];
+
+    if (userRank < requiredRank) {
+      throw new ForbiddenException(
+        `Insufficient role: requires '${requiredRole}' but you have '${membership.role}'`,
+      );
+    }
+
+    // Gắn membership vào request để service có thể dùng mà không cần query lại
+    request.serverMembership = membership;
 
     return true;
   }

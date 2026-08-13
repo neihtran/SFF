@@ -1,15 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
+import { ChannelType } from '@prisma/client';
 
 export class CreateChannelDto {
-  @ApiProperty({ example: 'general' })
+  @ApiProperty({ example: 'general-chat' })
   @IsString()
-  @IsNotEmpty()
+  @MinLength(1)
   @MaxLength(100)
   name!: string;
 
   @ApiProperty({ enum: ['TEXT', 'VOICE'], default: 'TEXT' })
   @IsEnum(['TEXT', 'VOICE'] as const)
-  @IsNotEmpty()
   type!: 'TEXT' | 'VOICE';
 }

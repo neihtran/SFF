@@ -1,9 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class JoinServerDto {
-  @ApiProperty({ example: 'abc12345' })
+  @ApiProperty({ example: 'a1b2c3d4' })
   @IsString()
-  @IsNotEmpty()
   inviteCode!: string;
 }
