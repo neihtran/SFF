@@ -6,6 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { UsersModule } from './modules/users/users.module';
 import { ServersModule } from './modules/servers/servers.module';
 import { ServerMembersModule } from './modules/server-members/server-members.module';
@@ -41,6 +42,9 @@ import { StorageModule } from './modules/storage/storage.module';
     NotificationsModule,
     StorageModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}
