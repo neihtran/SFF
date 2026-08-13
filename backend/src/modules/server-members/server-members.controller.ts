@@ -5,102 +5,94 @@ import {
   Post,
   Param,
   Body,
-  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { Request } from 'express';
-
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiOkResponse,
 } from '@nestjs/swagger';
-
 import { ServerMembersService } from './server-members.service';
-import { UpdateRoleDto } from './dto/update-role.dto';
-import { MemberResponseDto } from './dto/member-response.dto';
+import { UpdateRoleDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ServerRoleGuard } from '../../common/guards/server-role.guard';
 import { RequireServerRole } from '../../common/decorators/require-server-role.decorator';
-import { CurrentUser } from '../../common/decorators';
-import { ServerRequest } from '../../common/types/server-request.type';
-import { ServerRole } from '@prisma/client';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('server-members')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, ServerRoleGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('servers/:serverId/members')
 export class ServerMembersController {
-  constructor(private readonly membersService: ServerMembersService) {}
+  constructor(private readonly members: ServerMembersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all members of a server' })
-  @ApiResponse({ status: 200, type: [MemberResponseDto] })
-  async findAll(
-    @Param('serverId') serverId: string,
-  ): Promise<MemberResponseDto[]> {
-    return this.membersService.findAll(serverId);
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR', 'MEMBER')
+  @ApiOperation({ summary: 'List all active members of a server' })
+  @ApiOkResponse({ description: 'Array of members' })
+  getMembers(@Param('serverId', new ParseUUIDPipe()) serverId: string) {
+    return this.members.getMembers(serverId);
   }
 
   @Put(':userId/role')
+  @UseGuards(ServerRoleGuard)
   @RequireServerRole('OWNER')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Change a member role (owner only)' })
-  @ApiResponse({ status: 200, type: MemberResponseDto })
-  async updateRole(
-    @Param('serverId') serverId: string,
-    @Param('userId') targetUserId: string,
+  @ApiResponse({ status: 403, description: 'Cannot change owner role / role level too high' })
+  updateRole(
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
     @Body() dto: UpdateRoleDto,
-    @Req() req: ServerRequest,
-  ): Promise<MemberResponseDto> {
-    const actorRole = req.serverMembership!.role;
-    return this.membersService.updateRole(serverId, targetUserId, dto.role, actorRole);
+    @CurrentUser('id') requesterId: string,
+  ) {
+    return this.members.updateRole(requesterId, serverId, userId, dto.role);
   }
 
   @Post(':userId/kick')
-  @RequireServerRole('MODERATOR')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Kick a member from the server (moderator+)' })
-  @ApiResponse({ status: 204 })
-  async kick(
-    @Param('serverId') serverId: string,
-    @Param('userId') targetUserId: string,
-    @CurrentUser('id') actorId: string,
-    @Req() req: ServerRequest,
-  ): Promise<void> {
-    const actorRole = req.serverMembership!.role;
-    await this.membersService.kick(serverId, targetUserId, actorRole, actorId);
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Kick a member from the server (MODERATOR+ can kick MEMBERs)' })
+  @ApiResponse({ status: 403, description: 'Cannot kick owner / cannot kick member with higher or equal role' })
+  kick(
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
+    @CurrentUser('id') requesterId: string,
+  ) {
+    return this.members.kick(requesterId, serverId, userId);
   }
 
   @Post(':userId/ban')
-  @RequireServerRole('MODERATOR')
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Ban a member (moderator+)' })
-  @ApiResponse({ status: 200, type: MemberResponseDto })
-  async ban(
-    @Param('serverId') serverId: string,
-    @Param('userId') targetUserId: string,
-    @CurrentUser('id') actorId: string,
-    @Req() req: ServerRequest,
-  ): Promise<MemberResponseDto> {
-    const actorRole = req.serverMembership!.role;
-    return this.membersService.ban(serverId, targetUserId, actorRole, actorId);
+  @ApiOperation({ summary: 'Ban a member (MODERATOR+)' })
+  @ApiResponse({ status: 403, description: 'Cannot ban owner or member with higher role' })
+  ban(
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
+    @CurrentUser('id') requesterId: string,
+  ) {
+    return this.members.ban(requesterId, serverId, userId);
   }
 
   @Post(':userId/unban')
-  @RequireServerRole('MODERATOR')
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Unban a member (moderator+)' })
-  @ApiResponse({ status: 200, type: MemberResponseDto })
-  async unban(
-    @Param('serverId') serverId: string,
-    @Param('userId') targetUserId: string,
-    @Req() req: ServerRequest,
-  ): Promise<MemberResponseDto> {
-    const actorRole = req.serverMembership!.role;
-    return this.membersService.unban(serverId, targetUserId, actorRole);
+  @ApiOperation({ summary: 'Unban a user (re-join as MEMBER) — MODERATOR+' })
+  unban(
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
+    @CurrentUser('id') requesterId: string,
+  ) {
+    return this.members.unban(requesterId, serverId, userId);
   }
 }

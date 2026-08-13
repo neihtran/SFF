@@ -3,23 +3,15 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ServerRole } from '@prisma/client';
-
 import { PrismaService } from '../../prisma/prisma.service';
-import { REQUIRED_ROLE_KEY } from '../decorators/require-server-role.decorator';
-
-/**
- * Role priority: OWNER > MODERATOR > MEMBER
- * Higher number = more privilege.
- */
-const ROLE_RANK: Record<ServerRole, number> = {
-  OWNER: 3,
-  MODERATOR: 2,
-  MEMBER: 1,
-};
+import { SERVER_ROLE_LEVELS } from '../../config/constants';
+import {
+  REQUIRED_SERVER_ROLE_KEY,
+} from '../decorators/require-server-role.decorator';
 
 @Injectable()
 export class ServerRoleGuard implements CanActivate {
@@ -29,64 +21,51 @@ export class ServerRoleGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const requiredRole = this.reflector.getAllAndOverride<ServerRole>(
-      REQUIRED_ROLE_KEY,
+    const requiredRoles = this.reflector.getAllAndOverride<ServerRole[]>(
+      REQUIRED_SERVER_ROLE_KEY,
       [ctx.getHandler(), ctx.getClass()],
     );
 
-    // Nếu endpoint không có @RequireServerRole → cho qua (đã có JwtAuthGuard check auth)
-    if (!requiredRole) return true;
+    // Nếu không có decorator @RequireServerRole, cho phép đi qua
+    if (!requiredRoles || requiredRoles.length === 0) return true;
 
     const request = ctx.switchToHttp().getRequest();
-    const user = request.user as { id: string } | undefined;
+    const user = request.user;
+    if (!user) throw new ForbiddenException('Not authenticated');
 
-    if (!user?.id) {
-      throw new UnauthorizedException('Not authenticated');
-    }
+    // Lấy serverId từ params: /servers/:id/... hoặc /channels/:channelId/...
+    const serverId = this._extractServerId(request);
+    if (!serverId) throw new ForbiddenException('Server context not found');
 
-    // serverId có thể nằm ở nhiều param khác nhau tùy route
-    const serverId =
-      request.params?.serverId ??
-      request.params?.id ??
-      request.params?.server_id;
-
-    if (!serverId) {
-      // Nếu param không có serverId → guard không áp dụng (có thể route không phải server-scoped)
-      // Hoặc serverId nằm trong body/query (không phổ biến trong SFF)
-      throw new ForbiddenException(
-        'ServerRoleGuard: serverId not found in route params',
-      );
-    }
-
-    const membership = await this.prisma.serverMember.findUnique({
-      where: {
-        serverId_userId: {
-          serverId,
-          userId: user.id,
-        },
-      },
+    const member = await this.prisma.serverMember.findUnique({
+      where: { serverId_userId: { serverId, userId: user.id } },
     });
 
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this server');
-    }
+    if (!member) throw new ForbiddenException('Not a member of this server');
 
-    if (membership.status === 'BANNED') {
+    if (member.status === 'BANNED') {
       throw new ForbiddenException('You are banned from this server');
     }
 
-    const userRank = ROLE_RANK[membership.role];
-    const requiredRank = ROLE_RANK[requiredRole];
+    const maxAllowed = Math.max(...requiredRoles.map((r) => SERVER_ROLE_LEVELS[r]));
+    const userLevel = SERVER_ROLE_LEVELS[member.role];
 
-    if (userRank < requiredRank) {
+    if (userLevel < maxAllowed) {
       throw new ForbiddenException(
-        `Insufficient role: requires '${requiredRole}' but you have '${membership.role}'`,
+        `Requires ${requiredRoles.join(' or ')} role, but you are ${member.role}`,
       );
     }
 
-    // Gắn membership vào request để service có thể dùng mà không cần query lại
-    request.serverMembership = membership;
-
+    // Gắn role hiện tại vào request để service dùng nếu cần
+    request.serverRole = member.role;
     return true;
+  }
+
+  private _extractServerId(request: { params: Record<string, string> }): string | null {
+    return (
+      request.params['serverId'] ??
+      request.params['id'] ??
+      null
+    );
   }
 }

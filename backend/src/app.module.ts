@@ -27,7 +27,7 @@ import { StorageModule } from './modules/storage/storage.module';
     }),
     ThrottlerModule.forRoot([
       { name: 'short', ttl: 1000, limit: 5 },
-      { name: 'long', ttl: 60_000, limit: 100 },
+      { name: 'long', ttl: 60000, limit: 100 },
     ]),
     PrismaModule,
     CommonModule,

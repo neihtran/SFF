@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-
 import { ChannelsController } from './channels.controller';
 import { ChannelsService } from './channels.service';
-import { CommonModule } from '../../common/common.module';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
-  imports: [CommonModule],
+  imports: [PrismaModule],
   controllers: [ChannelsController],
   providers: [ChannelsService],
   exports: [ChannelsService],

@@ -34,3 +34,13 @@ export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
 
 // ----------- Voice / LiveKit -----------
 export const LIVEKIT_TOKEN_TTL_SECONDS = 60 * 60;
+
+// ----------- Server Role (OWNER > MODERATOR > MEMBER) -----------
+export const SERVER_ROLE_LEVELS: Record<string, number> = {
+  OWNER: 3,
+  MODERATOR: 2,
+  MEMBER: 1,
+};
+
+// ----------- Invite Code -----------
+export const INVITE_CODE_LENGTH = 8;

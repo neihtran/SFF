@@ -1,11 +1,10 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MinLength, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ChannelType } from '@prisma/client';
 
 export class CreateChannelDto {
-  @ApiProperty({ example: 'general-chat' })
+  @ApiProperty({ example: 'general' })
   @IsString()
-  @MinLength(1)
   @MaxLength(100)
   name!: string;
 

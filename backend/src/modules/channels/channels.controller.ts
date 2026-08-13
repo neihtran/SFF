@@ -8,70 +8,62 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
 } from '@nestjs/swagger';
-
 import { ChannelsService } from './channels.service';
-import { CreateChannelDto } from './dto/create-channel.dto';
-import { ChannelResponseDto } from './dto/channel-response.dto';
+import { CreateChannelDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ServerRoleGuard } from '../../common/guards/server-role.guard';
 import { RequireServerRole } from '../../common/decorators/require-server-role.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('channels')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, ServerRoleGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('servers/:serverId/channels')
 export class ChannelsController {
-  constructor(private readonly channelsService: ChannelsService) {}
+  constructor(private readonly channels: ChannelsService) {}
 
   @Post()
-  @RequireServerRole('MODERATOR')
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a channel (moderator+)' })
-  @ApiResponse({ status: 201, type: ChannelResponseDto })
-  async create(
-    @Param('serverId') serverId: string,
+  @ApiOperation({ summary: 'Create a new channel (MODERATOR+)' })
+  @ApiCreatedResponse({ description: 'Channel created' })
+  create(
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
     @Body() dto: CreateChannelDto,
-  ): Promise<ChannelResponseDto> {
-    return this.channelsService.create(serverId, dto);
+  ) {
+    return this.channels.create(serverId, dto.name, dto.type);
   }
 
   @Get()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'List all channels in a server' })
-  @ApiResponse({ status: 200, type: [ChannelResponseDto] })
-  async findByServer(
-    @Param('serverId') serverId: string,
-  ): Promise<ChannelResponseDto[]> {
-    return this.channelsService.findByServer(serverId);
-  }
-
-  @Get(':channelId')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get a channel by ID' })
-  @ApiResponse({ status: 200, type: ChannelResponseDto })
-  async findOne(
-    @Param('serverId') serverId: string,
-    @Param('channelId') channelId: string,
-  ): Promise<ChannelResponseDto> {
-    return this.channelsService.findOne(channelId, serverId);
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR', 'MEMBER')
+  @ApiOperation({ summary: 'List all channels in a server (any member)' })
+  @ApiOkResponse({ description: 'Array of channels' })
+  findByServer(@Param('serverId', new ParseUUIDPipe()) serverId: string) {
+    return this.channels.findByServer(serverId);
   }
 
   @Delete(':channelId')
-  @RequireServerRole('MODERATOR')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a channel (moderator+)' })
-  @ApiResponse({ status: 204 })
-  async delete(
-    @Param('serverId') serverId: string,
-    @Param('channelId') channelId: string,
-  ): Promise<void> {
-    await this.channelsService.delete(channelId, serverId);
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete a channel (MODERATOR+)' })
+  @ApiOkResponse({ description: 'Channel deleted' })
+  delete(
+    @Param('serverId', new ParseUUIDPipe()) serverId: string,
+    @Param('channelId', new ParseUUIDPipe()) channelId: string,
+  ) {
+    return this.channels.delete(channelId, serverId);
   }
 }

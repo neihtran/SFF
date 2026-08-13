@@ -1,81 +1,68 @@
 import {
   Controller,
   Post,
-  Get,
   Body,
+  Get,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
-
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
-import { TokenResponseDto } from './dto/token-response.dto';
+import { RegisterDto, LoginDto, RefreshTokenDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, Public } from '../../common/decorators';
+import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
-  @Public()
   @Post('register')
+  @Throttle({ short: { ttl: 60_000, limit: 10 } })
   @HttpCode(HttpStatus.CREATED)
-  @Throttle({ short: { ttl: 60_000, limit: 5 }, long: { ttl: 60_000, limit: 5 } })
-  @ApiOperation({ summary: 'Register a new user account' })
-  @ApiResponse({
-    status: 201,
-    description: 'Account created, tokens returned',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ status: 409, description: 'Email already in use' })
-  async register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
-    return this.authService.register(dto.name, dto.email, dto.password);
+  @ApiOperation({ summary: 'Register new account' })
+  @ApiCreatedResponse({ description: 'Account created, tokens returned' })
+  @ApiResponse({ status: 409, description: 'Email already registered' })
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto.name, dto.email, dto.password);
   }
 
-  @Public()
   @Post('login')
+  @Throttle({ short: { ttl: 60_000, limit: 20 } })
   @HttpCode(HttpStatus.OK)
-  @Throttle({ short: { ttl: 60_000, limit: 10 }, long: { ttl: 60_000, limit: 30 } })
-  @ApiOperation({ summary: 'Login with email and password' })
-  @ApiResponse({
-    status: 200,
-    description: 'Login successful',
-    type: AuthResponseDto,
-  })
+  @ApiOperation({ summary: 'Login with email + password' })
+  @ApiOkResponse({ description: 'Tokens returned on success' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(dto.email, dto.password);
+  login(@Body() dto: LoginDto) {
+    return this.auth.login(dto.email, dto.password);
   }
 
-  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  @ApiResponse({ status: 200, type: TokenResponseDto })
+  @ApiOkResponse({ description: 'New token pair' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
-  async refresh(@Body() dto: RefreshTokenDto): Promise<TokenResponseDto> {
-    return this.authService.refreshToken(dto.refreshToken);
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.auth.refreshTokens(dto.refreshToken);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('me')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get current authenticated user' })
-  @ApiResponse({ status: 200, type: UserResponseDto })
+  @ApiOkResponse({ description: 'Current user profile' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async me(@CurrentUser() user: Record<string, unknown>): Promise<UserResponseDto> {
-    return user as unknown as UserResponseDto;
+  me(@CurrentUser() user: AuthUser) {
+    return user;
   }
 }

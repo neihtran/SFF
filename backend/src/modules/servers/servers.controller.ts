@@ -1,112 +1,95 @@
 import {
   Controller,
-  Get,
   Post,
+  Get,
   Delete,
-  Body,
   Param,
+  Body,
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
 } from '@nestjs/swagger';
-
 import { ServersService } from './servers.service';
-import { CreateServerDto } from './dto/create-server.dto';
-import { JoinServerDto } from './dto/join-server.dto';
-import { ServerResponseDto } from './dto/server-response.dto';
+import { CreateServerDto, JoinServerDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ServerRoleGuard } from '../../common/guards/server-role.guard';
 import { RequireServerRole } from '../../common/decorators/require-server-role.decorator';
-import { CurrentUser } from '../../common/decorators';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ServerRole } from '@prisma/client';
 
 @ApiTags('servers')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('servers')
 export class ServersController {
-  constructor(private readonly serversService: ServersService) {}
-
-  // ─── Authenticated endpoints ───────────────────────────────
+  constructor(private readonly servers: ServersService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new server' })
-  @ApiResponse({ status: 201, type: ServerResponseDto })
-  async create(
-    @CurrentUser('id') userId: string,
-    @Body() dto: CreateServerDto,
-  ): Promise<ServerResponseDto> {
-    return this.serversService.create(userId, dto);
+  @ApiOperation({ summary: 'Create a new server (auto-joins as OWNER)' })
+  @ApiCreatedResponse({ description: 'Server created' })
+  create(@Body() dto: CreateServerDto, @CurrentUser('id') userId: string) {
+    return this.servers.create(userId, dto.name, dto.iconUrl);
   }
 
   @Get('mine')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'List all servers the current user is a member of' })
-  @ApiResponse({ status: 200, type: [ServerResponseDto] })
-  async findMine(
-    @CurrentUser('id') userId: string,
-  ): Promise<ServerResponseDto[]> {
-    return this.serversService.findMine(userId);
+  @ApiOperation({ summary: 'Get all servers the current user is a member of' })
+  @ApiOkResponse({ description: 'List of servers' })
+  findMine(@CurrentUser('id') userId: string) {
+    return this.servers.findMine(userId);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, ServerRoleGuard)
-  @ApiOperation({ summary: 'Get a server by ID' })
-  @ApiResponse({ status: 200, type: ServerResponseDto })
-  @ApiResponse({ status: 403, description: 'Not a member' })
-  @ApiResponse({ status: 404, description: 'Server not found' })
-  async findOne(
-    @CurrentUser('id') userId: string,
-    @Param('id') serverId: string,
-  ): Promise<ServerResponseDto> {
-    return this.serversService.findOne(serverId, userId);
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR', 'MEMBER')
+  @ApiOperation({ summary: 'Get server details (any member)' })
+  @ApiOkResponse({ description: 'Server object' })
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.servers.findOne(id);
+  }
+
+  @Post('join')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Join a server using invite code' })
+  @ApiOkResponse({ description: 'Membership created' })
+  @ApiResponse({ status: 404, description: 'Invalid invite code' })
+  @ApiResponse({ status: 409, description: 'Already a member' })
+  join(@Body() dto: JoinServerDto, @CurrentUser('id') userId: string) {
+    return this.servers.join(userId, dto.inviteCode);
   }
 
   @Delete(':id/leave')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Leave a server' })
-  @ApiResponse({ status: 204 })
-  @ApiResponse({ status: 403, description: 'Owner cannot leave' })
-  async leave(
+  @UseGuards(ServerRoleGuard)
+  @RequireServerRole('OWNER', 'MODERATOR', 'MEMBER')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Leave a server (owner cannot leave)' })
+  @ApiResponse({ status: 400, description: 'Owner cannot leave' })
+  leave(
+    @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser('id') userId: string,
-    @Param('id') serverId: string,
-  ): Promise<void> {
-    return this.serversService.leave(serverId, userId);
+  ) {
+    return this.servers.leave(userId, id);
   }
 
   @Post(':id/invite-code/regenerate')
-  @UseGuards(JwtAuthGuard, ServerRoleGuard)
+  @UseGuards(ServerRoleGuard)
   @RequireServerRole('OWNER')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Regenerate invite code (owner only)' })
-  @ApiResponse({ status: 200, description: '{ inviteCode: "NEWCODE" }' })
-  async regenerateInviteCode(
-    @Param('id') serverId: string,
+  @ApiOkResponse({ description: 'New invite code' })
+  regenerateInviteCode(
+    @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser('id') userId: string,
-  ): Promise<{ inviteCode: string }> {
-    return this.serversService.regenerateInviteCode(serverId, userId);
-  }
-
-  // ─── Public endpoints ───────────────────────────────────────
-
-  @Post('join')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Join a server using an invite code' })
-  @ApiResponse({ status: 200, type: ServerResponseDto })
-  @ApiResponse({ status: 404, description: 'Invalid invite code' })
-  @ApiResponse({ status: 409, description: 'Already a member' })
-  async join(
-    @CurrentUser('id') userId: string,
-    @Body() dto: JoinServerDto,
-  ): Promise<ServerResponseDto> {
-    return this.serversService.join(userId, dto.inviteCode);
+  ) {
+    return this.servers.regenerateInviteCode(userId, id);
   }
 }
