@@ -8,10 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 
 import { PrismaService } from '@/prisma/prisma.service';
-import {
-  ServerRoleLevel,
-  isRoleAtLeast,
-} from '@/common/types/server-role.enum';
+import { isRoleAtLeast } from '@/common/types/server-role.enum';
 import {
   MIN_ROLE_KEY,
   REQUIRE_MEMBERSHIP_KEY,

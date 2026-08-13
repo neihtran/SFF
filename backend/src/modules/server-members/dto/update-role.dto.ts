@@ -1,8 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty } from 'class-validator';
 
-import { ServerRole } from '@prisma/client';
-
 export class UpdateRoleDto {
   @ApiProperty({
     enum: ['MODERATOR', 'MEMBER'],

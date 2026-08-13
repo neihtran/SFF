@@ -124,9 +124,6 @@ export class ServerMembersService {
       where: { id: serverId },
     });
     const isOwner = server?.ownerId === requesterId;
-    const requesterMember = await this.prisma.serverMember.findUnique({
-      where: { serverId_userId: { serverId, userId: requesterId } },
-    });
 
     // MODERATOR không ban được MODERATOR khác
     if (targetMember.role === 'MODERATOR' && !isOwner) {
