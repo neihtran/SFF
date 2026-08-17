@@ -26,7 +26,7 @@ import { RequireServerRole } from '../../common/decorators/require-server-role.d
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('channels')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('servers/:serverId/channels')
 export class ChannelsController {

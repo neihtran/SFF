@@ -27,7 +27,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ServerRole } from '@prisma/client';
 
 @ApiTags('servers')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('servers')
 export class ServersController {

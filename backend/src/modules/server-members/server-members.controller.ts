@@ -25,7 +25,7 @@ import { RequireServerRole } from '../../common/decorators/require-server-role.d
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('server-members')
-@ApiBearerAuth()
+@ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 @Controller('servers/:serverId/members')
 export class ServerMembersController {
