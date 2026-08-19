@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -200,7 +201,8 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
           </div>
         )}
 
-        {messages.map((msg, i) => (
+        <AnimatePresence initial={false} mode="popLayout">
+          {messages.map((msg, i) => (
             <MessageBubble
               key={msg.id}
               message={msg}
@@ -215,6 +217,7 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
               isTranslating={!!translating[msg.id]}
             />
           ))}
+        </AnimatePresence>
 
         <div ref={bottomRef} className="h-1" />
       </ScrollArea>

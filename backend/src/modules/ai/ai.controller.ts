@@ -84,7 +84,7 @@ export class AiController {
   }
 
   // ---------- CATCH-UP SUMMARY ----------
-  @Get('channels/:channelId/catch-up')
+  @Get('channels/:channelId/ai/catch-up')
   @ApiOperation({
     summary: 'Summarize missed messages in a channel since a given timestamp',
   })
@@ -94,8 +94,7 @@ export class AiController {
     @Param('channelId', new ParseUUIDPipe()) channelId: string,
     @Query() query: CatchUpQueryDto,
   ) {
-    const since = query.since ? new Date(query.since) : undefined;
-    return this.rag.catchUpSummary(channelId, since);
+    return this.rag.catchUpSummary(channelId, new Date(query.since));
   }
 
   // ---------- TRANSLATE ----------

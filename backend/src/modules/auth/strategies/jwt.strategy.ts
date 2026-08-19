@@ -27,10 +27,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       where: { id: payload.sub },
       select: { id: true, email: true, name: true, avatarUrl: true, preferredLang: true },
     });
-    // Return null instead of throwing — Passport 0.7+ treats null/undefined
-    // return from validate() as auth failure and sets req.user = false.
-    // JwtAuthGuard then correctly returns 401 via AuthGuard('jwt').
-    if (!user) return null;
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
     return user;
   }
 }
