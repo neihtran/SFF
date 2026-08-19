@@ -21,6 +21,11 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
+  /** Access TTL — override qua env JWT_ACCESS_TTL nếu có (VD test nhanh). */
+  private get accessTtl(): string {
+    return this.config.get<string>('JWT_ACCESS_TTL') ?? JWT_ACCESS_TTL;
+  }
+
   // ---------- register ----------
   async register(name: string, email: string, password: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
@@ -118,14 +123,19 @@ export class AuthService {
   private async _generateTokens(userId: string, email: string): Promise<{ accessToken: string; refreshToken: string }> {
     const payload: JwtPayload = { sub: userId, email };
 
+    // expiresIn chấp nhận string kiểu "15m", "30s", "1h"... (xem type `StringValue`
+    // từ thư viện `ms`). Cast qua any để env-override hoạt động linh hoạt mà
+    // vẫn pass type-check; runtime vẫn validate qua jwt lib.
+    const accessExpiresIn = this.accessTtl as unknown as number & string;
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {
         secret: this.config.getOrThrow<string>('JWT_SECRET'),
-        expiresIn: JWT_ACCESS_TTL,
+        expiresIn: accessExpiresIn,
       }),
       this.jwt.signAsync(payload, {
         secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
-        expiresIn: JWT_REFRESH_TTL,
+        expiresIn: JWT_REFRESH_TTL as unknown as number & string,
       }),
     ]);
 

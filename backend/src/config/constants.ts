@@ -5,6 +5,9 @@
 // ============================================================
 
 // ----------- JWT -----------
+// TTL mặc định cho access token. Có thể override bằng biến môi trường
+// JWT_ACCESS_TTL (VD: "30s" để test nhanh socket auto-refresh).
+// Refresh TTL không nên override (mặc định 7 ngày).
 export const JWT_ACCESS_TTL = '15m';
 export const JWT_REFRESH_TTL = '7d';
 
@@ -17,13 +20,15 @@ export const MAX_PAGE_SIZE = 100;
 
 // ----------- AI / RAG -----------
 export const GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
-export const GEMINI_CHAT_MODEL = 'gemini-2.0-flash';
+export const GEMINI_CHAT_MODEL = 'gemini-3.6-flash';
 export const EMBEDDING_DIMENSION = 768;
 
 export const RAG_TOP_K = 5;
 export const RAG_SIMILARITY_THRESHOLD = 0.7;
 export const RAG_CHUNK_SIZE = 800;
 export const RAG_CHUNK_OVERLAP = 100;
+export const SEMANTIC_SEARCH_TOP_K = 20;
+export const CATCHUP_MAX_MESSAGES = 200;
 
 // ----------- Realtime / Socket -----------
 export const SOCKET_TYPING_TTL_MS = 5000;

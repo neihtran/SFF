@@ -23,16 +23,16 @@ import { CreateChannelDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ServerRoleGuard } from '../../common/guards/server-role.guard';
 import { RequireServerRole } from '../../common/decorators/require-server-role.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('channels')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
-@Controller('servers/:serverId/channels')
+@Controller()
 export class ChannelsController {
   constructor(private readonly channels: ChannelsService) {}
 
-  @Post()
+  @Post('servers/:serverId/channels')
   @UseGuards(ServerRoleGuard)
   @RequireServerRole('OWNER', 'MODERATOR')
   @HttpCode(HttpStatus.CREATED)
@@ -45,7 +45,7 @@ export class ChannelsController {
     return this.channels.create(serverId, dto.name, dto.type);
   }
 
-  @Get()
+  @Get('servers/:serverId/channels')
   @UseGuards(ServerRoleGuard)
   @RequireServerRole('OWNER', 'MODERATOR', 'MEMBER')
   @ApiOperation({ summary: 'List all channels in a server (any member)' })
@@ -54,7 +54,7 @@ export class ChannelsController {
     return this.channels.findByServer(serverId);
   }
 
-  @Delete(':channelId')
+  @Delete('servers/:serverId/channels/:channelId')
   @UseGuards(ServerRoleGuard)
   @RequireServerRole('OWNER', 'MODERATOR')
   @HttpCode(HttpStatus.OK)
@@ -65,5 +65,29 @@ export class ChannelsController {
     @Param('channelId', new ParseUUIDPipe()) channelId: string,
   ) {
     return this.channels.delete(channelId, serverId);
+  }
+
+  // ============================================================
+  // DIRECT MESSAGE ENDPOINTS
+  // ============================================================
+
+  @Get('dm')
+  @ApiOperation({ summary: 'List my DM channels (with last message preview)' })
+  @ApiOkResponse({ description: 'Array of DM channels' })
+  listMyDm(@CurrentUser() user: AuthUser) {
+    return this.channels.listMyDmChannels(user.id);
+  }
+
+  @Post('dm/:userId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get or create DM channel with the given user' })
+  @ApiOkResponse({ description: 'DM channel object (with lastMessage if any)' })
+  @ApiResponse({ status: 400, description: 'Cannot DM yourself' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  openDm(
+    @CurrentUser() user: AuthUser,
+    @Param('userId', new ParseUUIDPipe()) otherUserId: string,
+  ) {
+    return this.channels.getOrCreateDmChannel(user.id, otherUserId);
   }
 }
