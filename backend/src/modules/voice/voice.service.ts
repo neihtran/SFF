@@ -85,7 +85,7 @@ export class VoiceService {
       canPublishData: true,
     });
 
-    token.ttl = LIVEKIT_TOKEN_TTL_SECONDS;
+    token.ttl = `${LIVEKIT_TOKEN_TTL_SECONDS}s`;
 
     const jwt = await token.toJwt();
     this.logger.debug(`Voice token generated for ${userId} in room ${channelId}`);

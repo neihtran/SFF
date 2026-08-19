@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { Loader2, BotMessageSquare } from 'lucide-react';
+import { Send, BotMessageSquare } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { aiApi } from '@/features/ai/api/ai';
+import { TypingDots } from '@/components/TypingDots';
 
 interface AskAiDialogProps {
   open: boolean;
@@ -33,7 +34,7 @@ export function AskAiDialog({ open, onClose, channelId }: AskAiDialogProps): Rea
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
   async function handleSend() {
     if (!input.trim() || loading) return;
@@ -79,12 +80,13 @@ export function AskAiDialog({ open, onClose, channelId }: AskAiDialogProps): Rea
               </p>
             )}
 
-            <AnimatePresence>
+            <AnimatePresence initial={false}>
               {messages.map((msg, i) => (
                 <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 8 }}
+                  key={`${msg.timestamp}-${i}`}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
                   className={`flex gap-2 ${msg.role === 'ai' ? 'rounded-lg border border-accent-ai/40 bg-accent-ai/5 p-3' : ''}`}
                 >
                   {msg.role === 'ai' && (
@@ -100,18 +102,25 @@ export function AskAiDialog({ open, onClose, channelId }: AskAiDialogProps): Rea
                   </div>
                 </motion.div>
               ))}
-            </AnimatePresence>
 
-            {loading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-2 text-muted-foreground"
-              >
-                <Loader2 size={14} className="animate-spin" />
-                <span className="text-xs italic">AI đang suy nghĩ…</span>
-              </motion.div>
-            )}
+              {loading && (
+                <motion.div
+                  key="typing"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-center gap-2 rounded-lg border border-accent-ai/40 bg-accent-ai/5 p-3 text-muted-foreground"
+                >
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-ai text-xs font-bold text-white">
+                    AI
+                  </div>
+                  <div className="flex items-center gap-2 text-sm italic">
+                    <TypingDots className="text-accent-ai" />
+                    <span>AI đang suy nghĩ…</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           <div ref={bottomRef} />
         </ScrollArea>
@@ -125,8 +134,8 @@ export function AskAiDialog({ open, onClose, channelId }: AskAiDialogProps): Rea
             rows={1}
             className="min-h-0 flex-1 resize-none"
           />
-          <Button onClick={handleSend} disabled={loading || !input.trim()} className="shrink-0">
-            Gửi
+          <Button onClick={handleSend} disabled={loading || !input.trim()} className="shrink-0 gap-1">
+            <Send size={14} /> Gửi
           </Button>
         </div>
       </DialogContent>

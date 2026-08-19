@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { aiApi } from '@/features/ai/api/ai';
+import { TypingDots } from '@/components/TypingDots';
 
 interface CatchUpDialogProps {
   open: boolean;
@@ -37,36 +39,63 @@ export function CatchUpDialog({ open, onClose, channelId, channelName }: CatchUp
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (o) loadCatchUp(); onClose(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Tóm tắt #{channelName}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles size={18} className="text-accent-ai" />
+            Tóm tắt #{channelName}
+          </DialogTitle>
         </DialogHeader>
 
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-8">
-            <Loader2 size={20} className="animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">AI đang tóm tắt…</span>
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          {loading && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2 py-8 text-muted-foreground"
+            >
+              <TypingDots />
+              <span className="text-sm italic">AI đang tóm tắt các tin nhắn gần đây…</span>
+            </motion.div>
+          )}
 
-        {!loading && summary && (
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{summary}</p>
-          </div>
-        )}
+          {!loading && summary && (
+            <motion.div
+              key="summary"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="rounded-lg border border-accent-ai/30 bg-accent-ai/5 p-4"
+            >
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{summary}</p>
+            </motion.div>
+          )}
 
-        {!loading && !summary && (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Chưa có tóm tắt nào. Nhấn nút bên dưới để AI tóm tắt các tin nhắn gần đây.
-          </p>
-        )}
+          {!loading && !summary && (
+            <motion.p
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="py-6 text-center text-sm text-muted-foreground"
+            >
+              Chưa có tóm tắt nào. Nhấn nút bên dưới để AI tóm tắt các tin nhắn gần đây.
+            </motion.p>
+          )}
+        </AnimatePresence>
 
         <div className="flex justify-end">
           {!summary && (
             <Button onClick={loadCatchUp} disabled={loading}>
-              {loading ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-              Tóm tắt
+              {loading ? 'Đang tóm tắt…' : 'Tóm tắt'}
+            </Button>
+          )}
+          {summary && (
+            <Button variant="outline" onClick={loadCatchUp} disabled={loading}>
+              Tóm tắt lại
             </Button>
           )}
         </div>

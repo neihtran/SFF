@@ -3,7 +3,7 @@ import {
   LiveKitRoom,
   useLocalParticipant,
   useParticipants,
-  DisconnectButton,
+  useRoomContext,
 } from '@livekit/components-react';
 import { Track, LocalParticipant, RemoteParticipant } from 'livekit-client';
 import { Monitor } from 'lucide-react';
@@ -88,6 +88,7 @@ export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () 
 }
 
 function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => void }): React.ReactElement {
+  const { room } = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   // useParticipants() trả về TẤT CẢ participants (gồm cả local) — lọc bỏ local để tránh duplicate tile.
   const remoteParticipants = useParticipants();
@@ -105,9 +106,7 @@ function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => vo
             <p className="text-xs text-muted-foreground">Voice Channel</p>
           </div>
         </div>
-        <DisconnectButton>
-          <Button variant="ghost" size="sm" onClick={onLeave}>Ngắt kết nối</Button>
-        </DisconnectButton>
+        <Button variant="ghost" size="sm" onClick={() => { room.disconnect(); onLeave(); }}>Ngắt kết nối</Button>
       </div>
 
       <div className="flex-1 overflow-hidden p-4">
@@ -129,7 +128,7 @@ function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => vo
       </div>
 
       <div className="border-t border-border p-2">
-        <VoiceControlBar />
+        <VoiceControlBar onLeave={() => { room.disconnect(); onLeave(); }} />
       </div>
     </>
   );
@@ -197,14 +196,27 @@ function VideoTile({ track, isLocal }: { track: Track; isLocal: boolean }): Reac
   return <video ref={ref} autoPlay playsInline muted={isLocal} className="size-full object-cover" />;
 }
 
-function VoiceControlBar(): React.ReactElement {
-  const { localParticipant, isMicrophoneEnabled: micEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant();
+function VoiceControlBar({ onLeave }: { onLeave: () => void }): React.ReactElement {
+  const { room } = useRoomContext();
+  const {
+    localParticipant,
+    isMicrophoneEnabled: micEnabled,
+    isCameraEnabled,
+    isScreenShareEnabled,
+  } = useLocalParticipant();
+
+  // Track lần đầu user toggle — trước đó dùng màu trung tính,
+  // SAU KHI user chủ động bật/tắt thì mới dùng destructive cho "tắt".
+  const [hasInteractedMic, setHasInteractedMic] = useState(false);
+  const [hasInteractedCam, setHasInteractedCam] = useState(false);
 
   const toggleMic = useCallback(() => {
+    setHasInteractedMic(true);
     void localParticipant.setMicrophoneEnabled(!micEnabled);
   }, [localParticipant, micEnabled]);
 
   const toggleCam = useCallback(() => {
+    setHasInteractedCam(true);
     void localParticipant.setCameraEnabled(!isCameraEnabled);
   }, [localParticipant, isCameraEnabled]);
 
@@ -216,43 +228,64 @@ function VoiceControlBar(): React.ReactElement {
     }
   }, [localParticipant, isScreenShareEnabled]);
 
+  // Mic state -> màu:
+  //  - chưa từng bật và đang OFF: muted (trung tính) — không phải lỗi, là default
+  //  - đã từng bật và đang OFF: destructive (đỏ) — user vừa tắt
+  //  - đang ON: primary (xanh) — đang hoạt động
+  const micState: 'off-default' | 'off-active' | 'on' =
+    micEnabled ? 'on' : hasInteractedMic ? 'off-active' : 'off-default';
+  const camState: 'off-default' | 'off-active' | 'on' =
+    isCameraEnabled ? 'on' : hasInteractedCam ? 'off-active' : 'off-default';
+
+  function btnClass(state: 'off-default' | 'off-active' | 'on'): string {
+    if (state === 'on') return 'bg-primary text-primary-foreground hover:bg-primary/90';
+    if (state === 'off-active') return 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
+    return 'bg-muted text-muted-foreground hover:bg-muted/80';
+  }
+
   return (
     <div className="flex items-center justify-center gap-2">
       <button
         onClick={toggleMic}
-        className={`flex size-10 items-center justify-center rounded-full transition-colors ${
-          !micEnabled ? 'bg-red-500 text-white' : 'bg-muted hover:bg-muted/80'
-        }`}
-        title={!micEnabled ? 'Bật mic' : 'Tắt mic'}
+        className={`flex size-10 items-center justify-center rounded-full transition-colors ${btnClass(micState)}`}
+        title={micEnabled ? 'Tắt mic' : 'Bật mic'}
+        aria-label={micEnabled ? 'Tắt mic' : 'Bật mic'}
+        aria-pressed={micEnabled}
       >
-        <span>{!micEnabled ? '🎤' : '🎙️'}</span>
+        {micEnabled ? '🎙️' : '🎤'}
       </button>
 
       <button
         onClick={toggleCam}
-        className={`flex size-10 items-center justify-center rounded-full transition-colors ${
-          !isCameraEnabled ? 'bg-red-500 text-white' : 'bg-muted hover:bg-muted/80'
-        }`}
+        className={`flex size-10 items-center justify-center rounded-full transition-colors ${btnClass(camState)}`}
         title={isCameraEnabled ? 'Tắt camera' : 'Bật camera'}
+        aria-label={isCameraEnabled ? 'Tắt camera' : 'Bật camera'}
+        aria-pressed={isCameraEnabled}
       >
-        <span>{isCameraEnabled ? '📸' : '📷'}</span>
+        {isCameraEnabled ? '📸' : '📷'}
       </button>
 
       <button
         onClick={toggleScreen}
         className={`flex size-10 items-center justify-center rounded-full transition-colors ${
-          isScreenShareEnabled ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
+          isScreenShareEnabled
+            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+            : 'bg-muted text-muted-foreground hover:bg-muted/80'
         }`}
         title={isScreenShareEnabled ? 'Ngừng chia sẻ' : 'Chia sẻ màn hình'}
+        aria-label={isScreenShareEnabled ? 'Ngừng chia sẻ màn hình' : 'Chia sẻ màn hình'}
+        aria-pressed={isScreenShareEnabled}
       >
         <Monitor size={18} />
       </button>
 
       <button
-        className="flex size-10 items-center justify-center rounded-full bg-destructive text-white transition-colors hover:bg-destructive/80"
+        className="flex size-10 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-colors hover:bg-destructive/90"
+        onClick={onLeave}
         title="Rời voice"
+        aria-label="Rời voice"
       >
-        <span>📞</span>
+        📞
       </button>
     </div>
   );

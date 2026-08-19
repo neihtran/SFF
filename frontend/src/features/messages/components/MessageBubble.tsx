@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { TypingDots } from '@/components/TypingDots';
 import type { Message } from '../api/messages';
 
 const AI_AVATAR_FALLBACK = '🤖';
@@ -20,13 +22,17 @@ interface MessageBubbleProps {
   onReaction?: (messageId: string, emoji: string) => void;
   onRemoveReaction?: (messageId: string, reactionId: string) => void;
   onTranslate?: (messageId: string) => void;
+  /** Nội dung đã dịch sang preferred_lang (nếu có). Component tự toggle on/off. */
   translatedContent?: string;
+  /** Đang loading dịch — hiển thị typing dots nhỏ trên bubble. */
+  isTranslating?: boolean;
 }
 
 export function MessageBubble({
   message,
   currentUserId,
   translatedContent,
+  isTranslating = false,
   onEdit,
   onDelete,
   onReaction,
@@ -35,29 +41,33 @@ export function MessageBubble({
 }: MessageBubbleProps): React.ReactElement {
   const isOwn = currentUserId != null && message.senderId === currentUserId;
   const isAi = message.isAiReply;
-  const [showTranslations, setShowTranslations] = useState<Record<string, string>>({});
-  const [translating, setTranslating] = useState<Record<string, boolean>>({});
   const [showActions, setShowActions] = useState(false);
+  const [showTranslated, setShowTranslated] = useState(true);
 
   const senderName = isAi ? (message.aiServerName ?? 'AI Assistant') : (message.sender?.name ?? 'Unknown');
   const avatarFallback = isAi ? AI_AVATAR_FALLBACK : (senderName.slice(0, 2).toUpperCase());
 
+  // Ẩn nút dịch khi:
+  //  - là tin nhắn của chính mình (mình đã viết)
+  //  - là AI (AI trả lời theo preferredLang của mình)
+  const canTranslate = !!onTranslate && !isOwn && !isAi;
+
   async function handleTranslate() {
     if (!onTranslate) return;
-    if (showTranslations[message.id]) {
-      setShowTranslations((prev) => ({ ...prev, [message.id]: '' }));
+    if (showTranslated && translatedContent) {
+      setShowTranslated(false);
       return;
     }
-    setTranslating((prev) => ({ ...prev, [message.id]: true }));
-    try {
-      onTranslate(message.id);
-    } finally {
-      setTranslating((prev) => ({ ...prev, [message.id]: false }));
-    }
+    setShowTranslated(true);
+    onTranslate(message.id);
   }
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
       className={cn(
         'group relative flex gap-3 py-1',
         isAi && 'rounded-lg border border-accent-ai/40 bg-accent-ai/5 px-3 py-2',
@@ -104,18 +114,25 @@ export function MessageBubble({
           {message.content}
         </p>
 
-        {/* Inline translation */}
-        {translatedContent && (
-          <p className="mt-1 rounded border border-muted bg-muted/30 px-2 py-1 text-xs italic text-muted-foreground">
-            🌐 {translatedContent}
-          </p>
+        {/* Inline translation — chỉ hiển thị khi đã có nội dung dịch + showTranslated=true */}
+        {translatedContent && showTranslated && (
+          <motion.p
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.15 }}
+            className="mt-1 rounded border border-accent-ai/30 bg-accent-ai/5 px-2 py-1 text-xs italic text-foreground/80"
+          >
+            <span className="mr-1 text-accent-ai">🌐</span>
+            {translatedContent}
+          </motion.p>
         )}
 
-        {/* Inline translation */}
-        {showTranslations[message.id] && (
-          <p className="mt-1 rounded border border-muted bg-muted/30 px-2 py-1 text-xs italic text-muted-foreground">
-            {showTranslations[message.id]}
-          </p>
+        {/* Typing indicator khi AI đang dịch */}
+        {isTranslating && (
+          <div className="mt-1 flex items-center gap-1 text-xs italic text-muted-foreground">
+            <TypingDots className="text-accent-ai" />
+            <span>Đang dịch…</span>
+          </div>
         )}
 
         {/* Attachments */}
@@ -175,7 +192,7 @@ export function MessageBubble({
         )}
 
         {/* Hover action menu */}
-        {(showActions || false) && (
+        {showActions && (
           <div className="absolute -top-3 right-2 flex items-center gap-0.5 rounded-md border border-border bg-card p-0.5 shadow-sm">
             {onReaction && (
               <Popover>
@@ -193,14 +210,19 @@ export function MessageBubble({
                 </PopoverContent>
               </Popover>
             )}
-            {onTranslate && (
+            {canTranslate && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 text-muted-foreground"
+                className={cn(
+                  'size-7',
+                  showTranslated && translatedContent
+                    ? 'text-accent-ai'
+                    : 'text-muted-foreground',
+                )}
                 onClick={handleTranslate}
-                disabled={translating[message.id]}
-                title="Dịch"
+                title={showTranslated && translatedContent ? 'Ẩn bản dịch' : 'Dịch'}
+                aria-label={showTranslated && translatedContent ? 'Ẩn bản dịch' : 'Dịch'}
               >
                 🌐
               </Button>
@@ -212,8 +234,9 @@ export function MessageBubble({
                 className="size-7 text-muted-foreground"
                 onClick={() => onEdit(message.id, message.content)}
                 title="Sửa"
+                aria-label="Sửa"
               >
-                ✏️
+                �️
               </Button>
             )}
             {isOwn && onDelete && (
@@ -223,6 +246,7 @@ export function MessageBubble({
                 className="size-7 text-destructive"
                 onClick={() => onDelete(message.id)}
                 title="Xoá"
+                aria-label="Xoá"
               >
                 🗑️
               </Button>
@@ -230,11 +254,11 @@ export function MessageBubble({
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅', '🎉', '👀', '💯', '🤔'];
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅', '🎉', '👀', '💯', '�'];
 
 function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void }): React.ReactElement {
   return (

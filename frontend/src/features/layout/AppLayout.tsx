@@ -5,20 +5,36 @@ import { ServerSidebar } from './ServerSidebar';
 import { ChannelSidebar } from './ChannelSidebar';
 import { MainContent } from '@/features/layout/MainContent';
 import { ServerSettingsPanel } from '@/features/servers/components/ServerSettingsPanel';
+import { MembersPanel } from '@/features/servers/components/MembersPanel';
 import { CreateServerModal } from '@/features/servers/components/CreateServerModal';
 import { JoinServerModal } from '@/features/servers/components/JoinServerModal';
-import { MemberList } from '@/features/servers/components/MemberList';
 import { CreateChannelDialog } from '@/features/channels/components/CreateChannelDialog';
 import { SemanticSearchDialog } from '@/features/ai/components/SemanticSearchDialog';
 import { CatchUpDialog } from '@/features/ai/components/CatchUpDialog';
 import { AskAiDialog } from '@/features/ai/components/AskAiDialog';
 import { VoiceRoom } from '@/features/voice/VoiceRoom';
+import { SettingsDialog } from '@/features/layout/SettingsDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuthStore } from '@/store/authStore';
 import { serversApi } from '@/features/servers/api/servers';
 import { channelsApi } from '@/features/channels/api/channels';
 import type { Server } from '@/features/servers/api/servers';
 import type { Channel } from '@/features/channels/api/channels';
 import { Button } from '@/components/ui/button';
+
+/**
+ * Trạng thái overlay/modal của app — CHỈ 1 panel mở tại 1 thời điểm.
+ * Mở cái này sẽ tự đóng cái kia (vì là 1 state duy nhất).
+ * - 'members': Sheet trượt từ phải — danh sách thành viên server
+ * - 'server-settings': Dialog — cài đặt riêng của server (mời, đổi tên)
+ * - 'app-settings': Dialog — cài đặt app-level (theme, profile, logout)
+ */
+type Overlay = 'members' | 'server-settings' | 'app-settings' | null;
 
 export function AppLayout(): React.ReactElement {
   const user = useAuthStore((s) => s.user);
@@ -35,13 +51,19 @@ export function AppLayout(): React.ReactElement {
   const [showSemanticSearch, setShowSemanticSearch] = useState(false);
   const [showCatchUp, setShowCatchUp] = useState(false);
   const [showAskAi, setShowAskAi] = useState(false);
-  const [showMembers, setShowMembers] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+
+  // Panel trượt / modal (CHỈ 1 tại 1 thời điểm)
+  const [activeOverlay, setActiveOverlay] = useState<Overlay>(null);
 
   useEffect(() => {
     if (!user) return;
     serversApi.listMine().then(setServers).catch(console.error);
   }, [user]);
+
+  // Đóng panel khi đổi server — tránh sticky
+  useEffect(() => {
+    setActiveOverlay(null);
+  }, [selectedServer?.id]);
 
   if (!user) {
     return (
@@ -55,22 +77,16 @@ export function AppLayout(): React.ReactElement {
     setSelectedServer(srv);
     setSelectedChannel(null);
     setVoiceChannel(null);
-    setShowMembers(false);
-    setShowSettings(false);
   }
 
   function handleSelectChannel(ch: Channel) {
     setSelectedChannel(ch);
     setVoiceChannel(null);
-    setShowMembers(false);
-    setShowSettings(false);
   }
 
   function handleSelectVoice(ch: Channel) {
     setVoiceChannel(ch);
     setSelectedChannel(null);
-    setShowMembers(false);
-    setShowSettings(false);
   }
 
   async function handleServerCreated(srv: Server) {
@@ -90,7 +106,7 @@ export function AppLayout(): React.ReactElement {
     handleSelectChannel(ch);
   }
 
-  async function handleJumpToMessage(channelId: string, _messageId: string) {
+  async function handleJumpToMessage(channelId: string) {
     if (!selectedServer) return;
     const channels = await channelsApi.list(selectedServer.id);
     const found = channels.find((c) => c.id === channelId);
@@ -129,8 +145,8 @@ export function AppLayout(): React.ReactElement {
             selectedChannelId={selectedChannel?.id}
             onSelectChannel={handleSelectChannel}
             onSelectVoice={handleSelectVoice}
-            onOpenMembers={() => setShowMembers(true)}
-            onOpenSettings={() => setShowSettings(true)}
+            onOpenMembers={() => setActiveOverlay('members')}
+            onOpenSettings={() => setActiveOverlay('server-settings')}
             onCreateChannel={() => setShowCreateChannel(true)}
             isModerator={isModerator}
           />
@@ -140,7 +156,7 @@ export function AppLayout(): React.ReactElement {
       {/* Right: content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Voice room */}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {voiceChannel && (
             <motion.div
               key={voiceChannel.id}
@@ -175,7 +191,7 @@ export function AppLayout(): React.ReactElement {
                 size="icon"
                 className="size-8 text-muted-foreground"
                 onClick={() => setShowCatchUp(true)}
-                title="Tóm tắt bằng AI"
+                title="Tóm tắt b�ng AI"
               >
                 📋
               </Button>
@@ -224,10 +240,10 @@ export function AppLayout(): React.ReactElement {
                     <Plus size={14} className="mr-1" /> Tạo channel
                   </Button>
                 )}
-                <Button onClick={() => setShowMembers(true)} variant="outline" size="sm">
+                <Button onClick={() => setActiveOverlay('members')} variant="outline" size="sm">
                   <Users size={14} className="mr-1" /> Thành viên
                 </Button>
-                <Button onClick={() => setShowSettings(true)} variant="outline" size="sm">
+                <Button onClick={() => setActiveOverlay('server-settings')} variant="outline" size="sm">
                   <Settings size={14} className="mr-1" /> Cài đặt
                 </Button>
               </div>
@@ -257,47 +273,50 @@ export function AppLayout(): React.ReactElement {
             </div>
           </motion.div>
         )}
-
-        {/* Members panel */}
-        <AnimatePresence>
-          {showMembers && selectedServer && (
-            <motion.div
-              initial={{ opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 16 }}
-              className="flex flex-1 flex-col overflow-hidden bg-card"
-            >
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h2 className="font-semibold">Thành viên</h2>
-                <Button variant="ghost" size="sm" onClick={() => setShowMembers(false)}>×</Button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <MemberList server={selectedServer} currentUserId={user.id} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Settings panel */}
-        <AnimatePresence>
-          {showSettings && selectedServer && (
-            <motion.div
-              initial={{ opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 16 }}
-              className="flex flex-1 flex-col overflow-hidden"
-            >
-              <ServerSettingsPanel
-                server={selectedServer}
-                onClose={() => setShowSettings(false)}
-                onServerUpdate={handleServerUpdate}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      {/* Modals */}
+      {/* ============================================================
+       * Panel/Modal overlays — CHỈ 1 tại 1 thời điểm
+       * ============================================================ */}
+
+      {/* Members — slide từ phải (Sheet) */}
+      {selectedServer && (
+        <MembersPanel
+          open={activeOverlay === 'members'}
+          onOpenChange={(o) => setActiveOverlay(o ? 'members' : null)}
+          server={selectedServer}
+          currentUserId={user.id}
+        />
+      )}
+
+      {/* Settings — modal giữa (Dialog) — cài đặt riêng của server */}
+      <Dialog
+        open={activeOverlay === 'server-settings'}
+        onOpenChange={(o) => setActiveOverlay(o ? 'server-settings' : null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cài đặt Server</DialogTitle>
+          </DialogHeader>
+          {selectedServer ? (
+            <ServerSettingsPanel
+              server={selectedServer}
+              onClose={() => {}}
+              onServerUpdate={handleServerUpdate}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">Chọn một server trước.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* App-level SettingsDialog (theme toggle, profile, logout) — c�ng 1-trong-1 */}
+      <SettingsDialog
+        open={activeOverlay === 'app-settings'}
+        onOpenChange={(o) => setActiveOverlay(o ? 'app-settings' : null)}
+      />
+
+      {/* Modals (independent dialogs) */}
       <CreateServerModal
         open={showCreateServer}
         onClose={() => setShowCreateServer(false)}

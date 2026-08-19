@@ -17,7 +17,7 @@ interface SemanticSearchDialogProps {
   open: boolean;
   onClose: () => void;
   serverId: string;
-  onJumpToMessage: (channelId: string, messageId: string) => void;
+  onJumpToMessage: (channelId: string) => void;
 }
 
 export function SemanticSearchDialog({ open, onClose, serverId, onJumpToMessage }: SemanticSearchDialogProps): React.ReactElement {
@@ -42,7 +42,7 @@ export function SemanticSearchDialog({ open, onClose, serverId, onJumpToMessage 
   }
 
   function handleResultClick(result: SemanticResult) {
-    onJumpToMessage(result.channelId, result.messageId);
+    onJumpToMessage(result.channelId);
     onClose();
     setQuery('');
     setResults([]);

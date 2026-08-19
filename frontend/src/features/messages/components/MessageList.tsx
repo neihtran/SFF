@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,6 +28,7 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState<Record<string, boolean>>({});
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -166,20 +167,15 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   }
 
   async function handleTranslate(messageId: string) {
-    if (translations[messageId]) {
-      setTranslations((prev) => {
-        const next = { ...prev };
-        delete next[messageId];
-        return next;
-      });
-      return;
-    }
     try {
+      setTranslating((prev) => ({ ...prev, [messageId]: true }));
       const { translatedText } = await messagesApi.translate(messageId, preferredLang);
       setTranslations((prev) => ({ ...prev, [messageId]: translatedText }));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       toast.error(msg ?? 'Không thể dịch tin nhắn');
+    } finally {
+      setTranslating((prev) => ({ ...prev, [messageId]: false }));
     }
   }
 
@@ -207,24 +203,19 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
 
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
-            <motion.div
+            <MessageBubble
               key={msg.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-            >
-              <MessageBubble
-                message={msg}
-                currentUserId={currentUserId}
-                isLast={i === messages.length - 1}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onReaction={handleReaction}
-                onRemoveReaction={handleRemoveReaction}
-                onTranslate={handleTranslate}
-                translatedContent={translations[msg.id]}
-              />
-            </motion.div>
+              message={msg}
+              currentUserId={currentUserId}
+              isLast={i === messages.length - 1}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onReaction={handleReaction}
+              onRemoveReaction={handleRemoveReaction}
+              onTranslate={handleTranslate}
+              translatedContent={translations[msg.id]}
+              isTranslating={!!translating[msg.id]}
+            />
           ))}
         </AnimatePresence>
 
