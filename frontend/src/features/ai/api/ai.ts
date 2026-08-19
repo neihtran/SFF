@@ -52,7 +52,7 @@ export const aiApi = {
 
   catchUp: async (channelId: string, since?: string): Promise<{ summary: string }> => {
     const params = since ? `?since=${since}` : '';
-    const { data } = await axiosClient.get<{ summary: string }>(`/channels/${channelId}/ai/catch-up${params}`);
+    const { data } = await axiosClient.get<{ summary: string }>(`/channels/${channelId}/catch-up${params}`);
     return data;
   },
 };

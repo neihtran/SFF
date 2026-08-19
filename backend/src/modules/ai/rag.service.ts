@@ -344,11 +344,13 @@ export class RagService {
   /**
    * Tóm tắt các tin nhắn mới trong channel kể từ thời điểm `since`.
    */
-  async catchUpSummary(channelId: string, since: Date, targetLang = 'vi') {
+  async   catchUpSummary(channelId: string, since: Date | undefined, targetLang = 'vi') {
+    // Default: last 24 hours if no since provided
+    const sinceDate = since != null && !isNaN(since.getTime()) ? since : new Date(Date.now() - 24 * 60 * 60 * 1000);
     const messages = await this.prisma.message.findMany({
       where: {
         channelId,
-        createdAt: { gt: since },
+        createdAt: { gt: sinceDate },
         isAiReply: false,
       },
       include: {

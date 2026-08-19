@@ -94,7 +94,8 @@ export class AiController {
     @Param('channelId', new ParseUUIDPipe()) channelId: string,
     @Query() query: CatchUpQueryDto,
   ) {
-    return this.rag.catchUpSummary(channelId, new Date(query.since));
+    const since = query.since ? new Date(query.since) : undefined;
+    return this.rag.catchUpSummary(channelId, since);
   }
 
   // ---------- TRANSLATE ----------
