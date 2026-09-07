@@ -56,10 +56,15 @@ export const messagesApi = {
   create: async (
     channelId: string,
     content: string,
+    attachmentUrls?: string[],
   ): Promise<Message> => {
+    const payload: { content: string; attachmentUrls?: string[] } = { content };
+    if (attachmentUrls && attachmentUrls.length > 0) {
+      payload.attachmentUrls = attachmentUrls;
+    }
     const { data } = await axiosClient.post<Message>(
       `/channels/${channelId}/messages`,
-      { content },
+      payload,
     );
     return data;
   },

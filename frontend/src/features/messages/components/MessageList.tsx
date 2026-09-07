@@ -149,13 +149,13 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
     }
   }
 
-  async function handleSend(content: string) {
+  async function handleSend(content: string, attachmentUrls?: string[]) {
     // Nếu user gửi @AI ... → bật placeholder ngay (fire-and-forget ở backend,
     // không cần đợi response; AI reply sẽ được push qua socket 'message:new')
     if (/^@AI(\s|$)/i.test(content)) {
       setAiThinking(true);
     }
-    await messagesApi.create(channelId, content);
+    await messagesApi.create(channelId, content, attachmentUrls);
   }
 
   async function handleEdit(messageId: string, currentContent: string) {

@@ -14,6 +14,7 @@ import { CatchUpDialog } from '@/features/ai/components/CatchUpDialog';
 import { AskAiDialog } from '@/features/ai/components/AskAiDialog';
 import { VoiceRoom } from '@/features/voice/VoiceRoom';
 import { SettingsDialog } from '@/features/layout/SettingsDialog';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import {
   Dialog,
   DialogContent,
@@ -213,6 +214,7 @@ export function AppLayout(): React.ReactElement {
               >
                 <Search size={16} />
               </Button>
+              <NotificationBell />
             </div>
             <MainContent channel={selectedChannel} />
           </motion.div>
@@ -224,8 +226,11 @@ export function AppLayout(): React.ReactElement {
             key={selectedServer.id + '-detail'}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-1 flex-col items-center justify-center bg-background px-4"
+            className="relative flex flex-1 flex-col items-center justify-center bg-background px-4"
           >
+            <div className="absolute right-3 top-3">
+              <NotificationBell />
+            </div>
             <div className="max-w-md text-center">
               <h2 className="mb-2 text-xl font-bold">{selectedServer.name}</h2>
               <p className="mb-6 text-sm text-muted-foreground">
@@ -257,8 +262,11 @@ export function AppLayout(): React.ReactElement {
             key="welcome"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-1 flex-col items-center justify-center bg-background"
+            className="relative flex flex-1 flex-col items-center justify-center bg-background"
           >
+            <div className="absolute right-3 top-3">
+              <NotificationBell />
+            </div>
             <div className="text-center">
               <h1 className="mb-2 text-2xl font-bold">Chào {user.name}!</h1>
               <p className="text-muted-foreground">Chọn một server để bắt đầu</p>
