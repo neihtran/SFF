@@ -195,13 +195,27 @@ export class RagService {
       where: { serverId },
       select: {
         id: true,
+        serverId: true,
         title: true,
         createdAt: true,
         uploadedById: true,
         _count: { select: { chunks: true } },
       },
       orderBy: { createdAt: 'desc' },
-    });
+    }).then((docs) =>
+      docs.map((d) => ({
+        id: d.id,
+        serverId: d.serverId,
+        title: d.title,
+        createdAt: d.createdAt,
+        uploadedById: d.uploadedById,
+        // Backend index chạy fire-and-forget ngay sau khi createDocument
+        // (không qua queue) → khi list ra, document đã READY.
+        // Trong tương lai nếu chuyển sang queue/worker thì thêm field status thật.
+        status: 'READY' as const,
+        chunkCount: d._count.chunks,
+      })),
+    );
   }
 
   async createDocument(serverId: string, uploadedById: string, title: string, contentRaw: string) {

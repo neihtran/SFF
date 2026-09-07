@@ -37,7 +37,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
   async function handleUpdateName() {
     if (!displayName.trim() || !user) return;
     try {
-      const { data } = await axiosClient.patch('/users/me', { name: displayName.trim() });
+      const { data } = await axiosClient.put<{ name: string; preferredLang: string }>('/users/me', { name: displayName.trim() });
       useAuthStore.setState({ user: { ...user, name: data.name } });
       toast.success('Đã cập nhật tên');
     } catch {

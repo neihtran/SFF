@@ -68,7 +68,7 @@ export const messagesApi = {
     messageId: string,
     content: string,
   ): Promise<Message> => {
-    const { data } = await axiosClient.patch<Message>(
+    const { data } = await axiosClient.put<Message>(
       `/messages/${messageId}`,
       { content },
     );

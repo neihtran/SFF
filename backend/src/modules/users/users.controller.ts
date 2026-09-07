@@ -1,8 +1,10 @@
 import {
   Controller,
   Get,
+  Put,
   Param,
   Query,
+  Body,
   UseGuards,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -13,7 +15,9 @@ import {
   ApiOkResponse,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { UpdateMeDto } from './dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentUser, type AuthUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('users')
 @ApiBearerAuth('access-token')
@@ -27,6 +31,14 @@ export class UsersController {
   @ApiOkResponse({ description: 'Array of users' })
   search(@Query('q') q = '') {
     return this.users.searchByName(q);
+  }
+
+  // ---------- PUT /users/me ----------
+  @Put('me')
+  @ApiOperation({ summary: 'Update current user profile (name + preferredLang)' })
+  @ApiOkResponse({ description: 'Updated user profile' })
+  updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateMeDto) {
+    return this.users.updateMe(user.id, dto);
   }
 
   @Get(':id')

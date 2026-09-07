@@ -64,10 +64,9 @@ export function MessageBubble({
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
         'group relative flex gap-3 py-1',
         isAi && 'rounded-lg border border-accent-ai/40 bg-accent-ai/5 px-3 py-2',
@@ -236,7 +235,7 @@ export function MessageBubble({
                 title="Sửa"
                 aria-label="Sửa"
               >
-                �️
+                ✏️
               </Button>
             )}
             {isOwn && onDelete && (
@@ -258,7 +257,7 @@ export function MessageBubble({
   );
 }
 
-const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅', '🎉', '👀', '💯', '�'];
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅', '🎉', '👀', '💯', '🤔'];
 
 function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void }): React.ReactElement {
   return (

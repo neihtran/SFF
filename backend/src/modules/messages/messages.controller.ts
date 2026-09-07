@@ -118,17 +118,21 @@ export class MessagesController {
     return this.messages.addReaction(id, user.id, dto.emoji);
   }
 
-  // ---------- DELETE /messages/:id/reactions/:emoji ----------
-  @Delete('messages/:id/reactions/:emoji')
+  // ---------- DELETE /messages/:id/reactions/:reactionId ----------
+  // Xóa reaction của chính user hiện tại (dựa trên reactionId, không phải emoji
+  // — tránh phải URL-encode emoji và chính xác hơn về mặt UX).
+  @Delete('messages/:id/reactions/:reactionId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Remove a reaction' })
+  @ApiOperation({ summary: 'Remove one of your reactions on a message' })
   @ApiOkResponse({ description: 'All reactions on this message' })
+  @ApiResponse({ status: 403, description: 'Not your reaction' })
+  @ApiResponse({ status: 404, description: 'Reaction not found' })
   removeReaction(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Param('emoji') emoji: string,
+    @Param('reactionId', new ParseUUIDPipe()) reactionId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.messages.removeReaction(id, user.id, emoji);
+    return this.messages.removeReactionById(id, reactionId, user.id);
   }
 
   // ============================================================

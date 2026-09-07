@@ -24,7 +24,8 @@ import {
 const socketUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 let socket: Socket | null = null;
-let refreshing: Promise<string> | null = null;
+/** Promise<Boolean>: true = refresh thành công, false = thất bại. Dùng boolean vì trong axiosClient đã có logic refresh rồi. */
+let refreshing: Promise<boolean> | null = null;
 
 /** Kênh user đang subscribe (để auto re-join sau khi reconnect). */
 const subscribedChannels = new Set<string>();

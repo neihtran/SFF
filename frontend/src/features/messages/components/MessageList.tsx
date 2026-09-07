@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { TypingIndicator } from './TypingIndicator';
+import { AiTypingBubble } from './AiTypingBubble';
 import type { Message } from '../api/messages';
 import type { Socket } from 'socket.io-client';
 import { messagesApi } from '../api/messages';
@@ -29,6 +30,8 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState<Record<string, boolean>>({});
+  // AI đang xử lý 1 câu hỏi (placeholder bubble hiển thị typing dots)
+  const [aiThinking, setAiThinking] = useState(false);
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,6 +44,7 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
     setCursor(null);
     setHasMore(true);
     setTypingUsers([]);
+    setAiThinking(false);
 
     messagesApi.list(channelId).then((res) => {
       setMessages(res.items);
@@ -63,6 +67,8 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
+      // Khi nhận AI reply → tắt placeholder
+      if (msg.isAiReply) setAiThinking(false);
     }
     function onEdited(msg: Message) {
       setMessages((prev) => prev.map((m) => m.id === msg.id ? msg : m));
@@ -108,6 +114,22 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
     isInitialLoad.current = false;
   }, [messages, isAtBottom]);
 
+  // Auto-scroll khi AI bắt đầu typing
+  useEffect(() => {
+    if (aiThinking && isAtBottom) {
+      // chờ 1 tick để DOM render placeholder rồi mới scroll
+      const t = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      return () => clearTimeout(t);
+    }
+  }, [aiThinking, isAtBottom]);
+
+  // Timeout an toàn: nếu sau 30s AI không trả lời → ẩn placeholder (tránh kẹt vĩnh viễn)
+  useEffect(() => {
+    if (!aiThinking) return;
+    const t = setTimeout(() => setAiThinking(false), 30_000);
+    return () => clearTimeout(t);
+  }, [aiThinking]);
+
   function handleScroll(values: { scrollPercentage: number }) {
     setIsAtBottom(values.scrollPercentage > 90);
   }
@@ -128,6 +150,11 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   }
 
   async function handleSend(content: string) {
+    // Nếu user gửi @AI ... → bật placeholder ngay (fire-and-forget ở backend,
+    // không cần đợi response; AI reply sẽ được push qua socket 'message:new')
+    if (/^@AI(\s|$)/i.test(content)) {
+      setAiThinking(true);
+    }
     await messagesApi.create(channelId, content);
   }
 
@@ -201,7 +228,7 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
           </div>
         )}
 
-        <AnimatePresence initial={false} mode="popLayout">
+        <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
             <MessageBubble
               key={msg.id}
@@ -217,6 +244,9 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
               isTranslating={!!translating[msg.id]}
             />
           ))}
+
+          {/* Placeholder bubble "AI đang suy nghĩ..." khi user vừa gửi @AI */}
+          {aiThinking && <AiTypingBubble key="ai-thinking-placeholder" />}
         </AnimatePresence>
 
         <div ref={bottomRef} className="h-1" />

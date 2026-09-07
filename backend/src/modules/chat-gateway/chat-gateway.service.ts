@@ -12,9 +12,10 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
+import { PrismaService } from '../../prisma/prisma.service';
 
 interface AuthedSocket extends Socket {
-  data: { userId: string; email: string };
+  data: { userId: string; email: string; name: string };
 }
 
 @WebSocketGateway({
@@ -31,9 +32,16 @@ export class ChatGatewayService implements OnGatewayConnection, OnGatewayDisconn
    */
   private readonly onlineUsers = new Map<string, Set<string>>();
 
+  /**
+   * userId → tên hiển thị (cache khi connect, dùng để emit kèm tên
+   * trong typing:update mà không cần query DB mỗi lần gõ).
+   */
+  private readonly userNames = new Map<string, string>();
+
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ============================================================
@@ -59,6 +67,23 @@ export class ChatGatewayService implements OnGatewayConnection, OnGatewayDisconn
       });
       socket.data.userId = payload.sub;
       socket.data.email = payload.email;
+
+      // Lấy tên hiển thị từ Prisma để cache (1 query mỗi lần connect, không nhiều)
+      try {
+        const u = await this.prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { name: true },
+        });
+        if (u) {
+          socket.data.name = u.name;
+          this.userNames.set(payload.sub, u.name);
+        } else {
+          socket.data.name = '';
+        }
+      } catch (err) {
+        this.logger.warn(`Cannot load name for ${payload.sub}: ${(err as Error).message}`);
+        socket.data.name = '';
+      }
 
       // Join personal room để có thể push notif riêng (nếu cần sau)
       void socket.join(`user:${payload.sub}`);
@@ -87,6 +112,7 @@ export class ChatGatewayService implements OnGatewayConnection, OnGatewayDisconn
       set.delete(socket.id);
       if (set.size === 0) {
         this.onlineUsers.delete(userId);
+        this.userNames.delete(userId);
         this.server.emit('user:offline', { userId });
       }
     }
@@ -128,6 +154,7 @@ export class ChatGatewayService implements OnGatewayConnection, OnGatewayDisconn
     socket.to(`channel:${body.channelId}`).emit('typing:update', {
       channelId: body.channelId,
       userId: socket.data.userId,
+      name: socket.data.name || this.userNames.get(socket.data.userId) || 'Unknown',
       isTyping: true,
     });
   }
@@ -141,6 +168,7 @@ export class ChatGatewayService implements OnGatewayConnection, OnGatewayDisconn
     socket.to(`channel:${body.channelId}`).emit('typing:update', {
       channelId: body.channelId,
       userId: socket.data.userId,
+      name: socket.data.name || this.userNames.get(socket.data.userId) || 'Unknown',
       isTyping: false,
     });
   }

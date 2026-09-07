@@ -129,7 +129,8 @@ export class MessagesService {
         ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      take,
+      // Lấy thêm 1 để xác định hasMore (nếu trả về > take → còn trang tiếp)
+      take: take + 1,
       include: {
         sender: { select: { id: true, name: true, avatarUrl: true } },
         attachments: true,
@@ -141,11 +142,14 @@ export class MessagesService {
       },
     });
 
-    const nextCursor = items.length === take ? items[items.length - 1].createdAt.toISOString() : null;
+    const hasMore = items.length > take;
+    const trimmed = hasMore ? items.slice(0, take) : items;
+    const nextCursor = hasMore ? trimmed[trimmed.length - 1].createdAt.toISOString() : null;
 
     return {
-      items: items.reverse(),
+      items: trimmed.reverse(),
       nextCursor,
+      hasMore,
     };
   }
 
@@ -241,6 +245,35 @@ export class MessagesService {
     await this.prisma.messageReaction.deleteMany({
       where: { messageId, userId, emoji },
     });
+
+    const reactions = await this._getReactionsForMessage(messageId);
+    this.gateway.emitReactionUpdated(msg.channelId, messageId, reactions);
+    return reactions;
+  }
+
+  /**
+   * Xóa reaction dựa trên reactionId (UUID) — chính xác hơn dùng emoji.
+   * - Kiểm tra reaction thuộc về user hiện tại (403 nếu không phải).
+   * - Trả 404 nếu reaction không tồn tại.
+   */
+  async removeReactionById(messageId: string, reactionId: string, userId: string) {
+    const msg = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, channelId: true },
+    });
+    if (!msg) throw new NotFoundException('Message not found');
+
+    const reaction = await this.prisma.messageReaction.findUnique({
+      where: { id: reactionId },
+    });
+    if (!reaction || reaction.messageId !== messageId) {
+      throw new NotFoundException('Reaction not found');
+    }
+    if (reaction.userId !== userId) {
+      throw new ForbiddenException('You can only remove your own reactions');
+    }
+
+    await this.prisma.messageReaction.delete({ where: { id: reactionId } });
 
     const reactions = await this._getReactionsForMessage(messageId);
     this.gateway.emitReactionUpdated(msg.channelId, messageId, reactions);

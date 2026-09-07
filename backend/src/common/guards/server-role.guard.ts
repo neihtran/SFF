@@ -8,7 +8,6 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ServerRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SERVER_ROLE_LEVELS } from '../../config/constants';
 import {
   REQUIRED_SERVER_ROLE_KEY,
 } from '../decorators/require-server-role.decorator';
@@ -47,10 +46,9 @@ export class ServerRoleGuard implements CanActivate {
       throw new ForbiddenException('You are banned from this server');
     }
 
-    const maxAllowed = Math.max(...requiredRoles.map((r) => SERVER_ROLE_LEVELS[r]));
-    const userLevel = SERVER_ROLE_LEVELS[member.role];
-
-    if (userLevel < maxAllowed) {
+    const memberRole = member.role as ServerRole;
+    const isAllowed = requiredRoles.includes(memberRole);
+    if (!isAllowed) {
       throw new ForbiddenException(
         `Requires ${requiredRoles.join(' or ')} role, but you are ${member.role}`,
       );

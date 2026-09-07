@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Query,
   Body,
@@ -70,7 +71,7 @@ export class AiController {
   }
 
   // ---------- AI PERSONA — delete document ----------
-  @Post('servers/:serverId/ai-documents/:documentId/delete')
+  @Delete('servers/:serverId/ai-documents/:documentId')
   @UseGuards(ServerRoleGuard)
   @RequireServerRole('OWNER')
   @HttpCode(HttpStatus.OK)
@@ -84,7 +85,7 @@ export class AiController {
   }
 
   // ---------- CATCH-UP SUMMARY ----------
-  @Get('channels/:channelId/ai/catch-up')
+  @Get('channels/:channelId/catch-up')
   @ApiOperation({
     summary: 'Summarize missed messages in a channel since a given timestamp',
   })

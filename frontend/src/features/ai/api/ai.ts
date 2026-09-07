@@ -14,7 +14,9 @@ export interface AiDocument {
   id: string;
   serverId: string;
   title: string;
+  /** Backend index chạy fire-and-forget ngay trong createDocument — luôn 'READY' khi list ra */
   status: 'PROCESSING' | 'READY' | 'FAILED';
+  /** Số chunk embedding đã sinh (lấy từ _count.chunks của Prisma) */
   chunkCount: number;
   createdAt: string;
 }
@@ -52,7 +54,7 @@ export const aiApi = {
 
   catchUp: async (channelId: string, since?: string): Promise<{ summary: string }> => {
     const params = since ? `?since=${since}` : '';
-    const { data } = await axiosClient.get<{ summary: string }>(`/channels/${channelId}/ai/catch-up${params}`);
+    const { data } = await axiosClient.get<{ summary: string }>(`/channels/${channelId}/catch-up${params}`);
     return data;
   },
 };

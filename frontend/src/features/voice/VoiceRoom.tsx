@@ -88,7 +88,7 @@ export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () 
 }
 
 function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => void }): React.ReactElement {
-  const { room } = useRoomContext();
+  const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   // useParticipants() trả về TẤT CẢ participants (gồm cả local) — lọc bỏ local để tránh duplicate tile.
   const remoteParticipants = useParticipants();
@@ -106,7 +106,16 @@ function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => vo
             <p className="text-xs text-muted-foreground">Voice Channel</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => { room.disconnect(); onLeave(); }}>Ngắt kết nối</Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (room) room.disconnect();
+            onLeave();
+          }}
+        >
+          Ngắt kết nối
+        </Button>
       </div>
 
       <div className="flex-1 overflow-hidden p-4">
@@ -128,7 +137,12 @@ function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => vo
       </div>
 
       <div className="border-t border-border p-2">
-        <VoiceControlBar onLeave={() => { room.disconnect(); onLeave(); }} />
+        <VoiceControlBar
+          onLeave={() => {
+            if (room) room.disconnect();
+            onLeave();
+          }}
+        />
       </div>
     </>
   );
@@ -197,7 +211,6 @@ function VideoTile({ track, isLocal }: { track: Track; isLocal: boolean }): Reac
 }
 
 function VoiceControlBar({ onLeave }: { onLeave: () => void }): React.ReactElement {
-  const { room } = useRoomContext();
   const {
     localParticipant,
     isMicrophoneEnabled: micEnabled,
