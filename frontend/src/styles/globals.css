@@ -121,3 +121,55 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 }
+
+/* ============================================================
+ * SFF — LiveKit Components Theme Override
+ * Áp dụng dark mode cho GridLayout/ParticipantTile mặc định của
+ * @livekit/components-react (mặc định sáng, gây chói trong dark UI).
+ * Class hook: .lk-theme-sff trên wrapper cha.
+ * LiveKit CSS vars dùng hex (không phải hsl triplet), ta override trực tiếp.
+ * ============================================================ */
+.lk-theme-sff {
+  /* Surface colors */
+  --lk-bg: #0e0e14; /* hsl(240 10% 8%) */
+  --lk-bg2: #171721; /* hsl(240 8% 12%) */
+  --lk-bg3: #1f1f2e; /* hsl(240 6% 18%) */
+  --lk-bg4: #1a1a26;
+  --lk-bg5: #2a2a3c;
+
+  /* Text */
+  --lk-text: #f3f3f8;
+  --lk-text-muted: #9da0b3;
+
+  /* Accent (primary) */
+  --lk-accent: #8a7ef5;
+  --lk-accent-fg: #ffffff;
+
+  /* Destructive (leave button) */
+  --lk-destructive: #e04164;
+  --lk-destructive-fg: #ffffff;
+
+  /* Border / divider */
+  --lk-border: #2a2a3c;
+  --lk-ring: #8a7ef5;
+
+  /* Speaking */
+  --lk-speaking: #2bbf72;
+}
+
+/* Tile background & borders tròn theo design SFF */
+.lk-theme-sff .lk-grid-layout,
+.lk-theme-sff .lk-participant-tile,
+.lk-theme-sff .lk-focus-layout {
+  background-color: var(--lk-bg2);
+  border: 1px solid var(--lk-border);
+  border-radius: 0.75rem;
+}
+
+/* Speaking glow */
+.lk-theme-sff .lk-participant-tile.lk-speaking,
+.lk-theme-sff [data-lk-speaking='true'] {
+  box-shadow: 0 0 0 2px var(--lk-speaking);
+}
+
+

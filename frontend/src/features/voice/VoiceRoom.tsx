@@ -1,19 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LiveKitRoom,
-  useLocalParticipant,
-  useParticipants,
-  useRoomContext,
+  useTracks,
 } from '@livekit/components-react';
-import { Track, LocalParticipant, RemoteParticipant } from 'livekit-client';
-import { Monitor } from 'lucide-react';
+import { GridLayout, ParticipantTile } from '@livekit/components-react';
+import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 import { voiceApi } from './api/voice';
 import type { Channel } from '../channels/api/channels';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { VoiceControlBar } from './VoiceControlBar';
 
-export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () => void }): React.ReactElement {
+/**
+ * VoiceRoom — Voice/Video/Screen Share qua LiveKit.
+ *
+ * F.5 (spec): UI dùng component có sẵn của `@livekit/components-react`
+ *  - GridLayout + ParticipantTile cho danh sách người tham gia
+ *  - TrackToggle (mic/cam/screen) + DisconnectButton cho control bar
+ *  - Tự dựng SFF styling (màu nút: trung tính OFF-default, đỏ OFF-active, primary ON)
+ *
+ * F.4 (spec): screen share constraint 720p/30fps được áp ở VoiceControlBar qua
+ * `captureOptionsBySource` của TrackToggle (xem VoiceControlBar.tsx).
+ */
+export function VoiceRoom({
+  channel,
+  onLeave,
+}: {
+  channel: Channel;
+  onLeave: () => void;
+}): React.ReactElement {
   const [token, setToken] = useState<string | null>(null);
   const [livekitUrl, setLivekitUrl] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(true);
@@ -22,12 +37,10 @@ export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () 
   // Chống double-fetch khi:
   //  - React.StrictMode chạy effect 2 lần trong dev
   //  - đổi channel liên tiếp (race với request cũ)
-  //  - channel prop cùng id nhưng reference đổi
   const fetchedFor = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    // Nếu đã fetch cho đúng channel này rồi thì skip (StrictMode double-mount)
     if (fetchedFor.current === channel.id && token) {
       setConnecting(false);
       return;
@@ -44,7 +57,7 @@ export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () 
       })
       .catch((e) => {
         if (cancelled) return;
-        fetchedFor.current = null; // cho phép retry khi fail
+        fetchedFor.current = null;
         setErr(e?.response?.data?.message ?? 'Không thể lấy voice token');
       })
       .finally(() => {
@@ -69,7 +82,9 @@ export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () 
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-background">
         <p className="text-destructive">{err ?? 'Không lấy được token'}</p>
-        <Button variant="outline" onClick={onLeave}>Quay lại</Button>
+        <Button variant="outline" onClick={onLeave}>
+          Quay lại
+        </Button>
       </div>
     );
   }
@@ -81,18 +96,39 @@ export function VoiceRoom({ channel, onLeave }: { channel: Channel; onLeave: () 
       connect
       connectOptions={{ autoSubscribe: true }}
       className="flex flex-1 flex-col"
+      // Tắt audio/video renderer mặc định của LiveKit — ParticipantTile tự lo.
+      audio={false}
+      video={false}
+      onDisconnected={() => onLeave()}
     >
       <RoomContent channel={channel} onLeave={onLeave} />
     </LiveKitRoom>
   );
 }
 
-function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => void }): React.ReactElement {
-  const room = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
-  // useParticipants() trả về TẤT CẢ participants (gồm cả local) — lọc bỏ local để tránh duplicate tile.
-  const remoteParticipants = useParticipants();
-  const all = [localParticipant, ...remoteParticipants.filter((p) => p.identity !== localParticipant.identity)];
+/**
+ * RoomContent — layout voice channel:
+ *  - Header (tên channel + rời phòng)
+ *  - GridLayout + ParticipantTile (camera & screen share)
+ *  - VoiceControlBar (mic/cam/screen/leave) ở footer
+ */
+function RoomContent({
+  channel,
+  onLeave,
+}: {
+  channel: Channel;
+  onLeave: () => void;
+}): React.ReactElement {
+  // Lấy TẤT CẢ tracks camera + screen share (của cả local lẫn remote).
+  // Dùng {withPlaceholder: true} để hiển thị cả participant không bật camera
+  // (đặc biệt quan trọng cho voice-only participants — vẫn thấy avatar + name).
+  const tracks = useTracks(
+    [
+      { source: Track.Source.Camera, withPlaceholder: true },
+      { source: Track.Source.ScreenShare, withPlaceholder: false },
+    ],
+    { onlySubscribed: false },
+  );
 
   return (
     <>
@@ -106,200 +142,26 @@ function RoomContent({ channel, onLeave }: { channel: Channel; onLeave: () => vo
             <p className="text-xs text-muted-foreground">Voice Channel</p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            if (room) room.disconnect();
-            onLeave();
-          }}
-        >
+        <Button variant="ghost" size="sm" onClick={onLeave}>
           Ngắt kết nối
         </Button>
       </div>
 
-      <div className="flex-1 overflow-hidden p-4">
-        {all.length === 0 ? (
+      <div className="lk-theme-sff flex-1 overflow-hidden p-4">
+        {tracks.length === 0 ? (
           <div className="flex h-full items-center justify-center text-muted-foreground">
             Không có ai trong phòng
           </div>
         ) : (
-          <div className="grid h-full grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {all.map((p) => (
-              <ParticipantTile
-                key={p.identity}
-                participant={p}
-                isLocal={p.identity === localParticipant.identity}
-              />
-            ))}
-          </div>
+          <GridLayout tracks={tracks}>
+            <ParticipantTile />
+          </GridLayout>
         )}
       </div>
 
       <div className="border-t border-border p-2">
-        <VoiceControlBar
-          onLeave={() => {
-            if (room) room.disconnect();
-            onLeave();
-          }}
-        />
+        <VoiceControlBar />
       </div>
     </>
-  );
-}
-
-function ParticipantTile({
-  participant,
-  isLocal,
-}: {
-  participant: LocalParticipant | RemoteParticipant;
-  isLocal: boolean;
-}): React.ReactElement {
-  const isSpeaking = participant.isSpeaking;
-
-  const videoPubs = [...participant.trackPublications.values()].filter(
-    (pub) => pub.track?.kind === Track.Kind.Video && !pub.track?.isMuted,
-  );
-  const screenPubs = [...participant.trackPublications.values()].filter(
-    (pub) => pub.source === Track.Source.ScreenShare && !pub.track?.isMuted,
-  );
-  const activeTrack = screenPubs[0]?.track ?? videoPubs[0]?.track;
-  const isMuted = !participant.isMicrophoneEnabled;
-
-  return (
-    <div
-      className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded-xl border-2 transition-all ${
-        isSpeaking ? 'border-green-500 shadow-[0_0_16px_rgba(34,197,94,0.35)]' : 'border-border'
-      }`}
-    >
-      {isSpeaking && (
-        <div className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-green-500 ring-offset-2 ring-offset-background" />
-      )}
-
-      {activeTrack ? (
-        <VideoTile track={activeTrack} isLocal={isLocal} />
-      ) : (
-        <Avatar className="size-16">
-          <AvatarFallback className="text-lg font-bold">
-            {(participant.name ?? participant.identity).slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-      )}
-
-      <div className="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
-        {participant.name ?? participant.identity}
-        {isLocal && ' (bạn)'}
-      </div>
-
-      {isMuted && (
-        <div className="absolute right-2 top-2 rounded-full bg-red-500 p-1">
-          <span className="text-[8px] text-white">🎤</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function VideoTile({ track, isLocal }: { track: Track; isLocal: boolean }): React.ReactElement {
-  const ref = (el: HTMLVideoElement | null) => {
-    if (el) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((track as any).attach as (el: HTMLVideoElement) => void)(el);
-    }
-  };
-  return <video ref={ref} autoPlay playsInline muted={isLocal} className="size-full object-cover" />;
-}
-
-function VoiceControlBar({ onLeave }: { onLeave: () => void }): React.ReactElement {
-  const {
-    localParticipant,
-    isMicrophoneEnabled: micEnabled,
-    isCameraEnabled,
-    isScreenShareEnabled,
-  } = useLocalParticipant();
-
-  // Track lần đầu user toggle — trước đó dùng màu trung tính,
-  // SAU KHI user chủ động bật/tắt thì mới dùng destructive cho "tắt".
-  const [hasInteractedMic, setHasInteractedMic] = useState(false);
-  const [hasInteractedCam, setHasInteractedCam] = useState(false);
-
-  const toggleMic = useCallback(() => {
-    setHasInteractedMic(true);
-    void localParticipant.setMicrophoneEnabled(!micEnabled);
-  }, [localParticipant, micEnabled]);
-
-  const toggleCam = useCallback(() => {
-    setHasInteractedCam(true);
-    void localParticipant.setCameraEnabled(!isCameraEnabled);
-  }, [localParticipant, isCameraEnabled]);
-
-  const toggleScreen = useCallback(async () => {
-    if (isScreenShareEnabled) {
-      await localParticipant.setScreenShareEnabled(false);
-    } else {
-      await localParticipant.setScreenShareEnabled(true);
-    }
-  }, [localParticipant, isScreenShareEnabled]);
-
-  // Mic state -> màu:
-  //  - chưa từng bật và đang OFF: muted (trung tính) — không phải lỗi, là default
-  //  - đã từng bật và đang OFF: destructive (đỏ) — user vừa tắt
-  //  - đang ON: primary (xanh) — đang hoạt động
-  const micState: 'off-default' | 'off-active' | 'on' =
-    micEnabled ? 'on' : hasInteractedMic ? 'off-active' : 'off-default';
-  const camState: 'off-default' | 'off-active' | 'on' =
-    isCameraEnabled ? 'on' : hasInteractedCam ? 'off-active' : 'off-default';
-
-  function btnClass(state: 'off-default' | 'off-active' | 'on'): string {
-    if (state === 'on') return 'bg-primary text-primary-foreground hover:bg-primary/90';
-    if (state === 'off-active') return 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
-    return 'bg-muted text-muted-foreground hover:bg-muted/80';
-  }
-
-  return (
-    <div className="flex items-center justify-center gap-2">
-      <button
-        onClick={toggleMic}
-        className={`flex size-10 items-center justify-center rounded-full transition-colors ${btnClass(micState)}`}
-        title={micEnabled ? 'Tắt mic' : 'Bật mic'}
-        aria-label={micEnabled ? 'Tắt mic' : 'Bật mic'}
-        aria-pressed={micEnabled}
-      >
-        {micEnabled ? '🎙️' : '🎤'}
-      </button>
-
-      <button
-        onClick={toggleCam}
-        className={`flex size-10 items-center justify-center rounded-full transition-colors ${btnClass(camState)}`}
-        title={isCameraEnabled ? 'Tắt camera' : 'Bật camera'}
-        aria-label={isCameraEnabled ? 'Tắt camera' : 'Bật camera'}
-        aria-pressed={isCameraEnabled}
-      >
-        {isCameraEnabled ? '📸' : '📷'}
-      </button>
-
-      <button
-        onClick={toggleScreen}
-        className={`flex size-10 items-center justify-center rounded-full transition-colors ${
-          isScreenShareEnabled
-            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-            : 'bg-muted text-muted-foreground hover:bg-muted/80'
-        }`}
-        title={isScreenShareEnabled ? 'Ngừng chia sẻ' : 'Chia sẻ màn hình'}
-        aria-label={isScreenShareEnabled ? 'Ngừng chia sẻ màn hình' : 'Chia sẻ màn hình'}
-        aria-pressed={isScreenShareEnabled}
-      >
-        <Monitor size={18} />
-      </button>
-
-      <button
-        className="flex size-10 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-colors hover:bg-destructive/90"
-        onClick={onLeave}
-        title="Rời voice"
-        aria-label="Rời voice"
-      >
-        📞
-      </button>
-    </div>
   );
 }
