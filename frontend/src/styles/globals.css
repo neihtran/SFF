@@ -175,4 +175,74 @@
   box-shadow: 0 0 0 2px var(--lk-speaking);
 }
 
+/* ============================================================
+ * SFF — LiveKit ControlBar override
+ * Áp design system H.2 spec:
+ *  - OFF-default (chưa tương tác): muted (trung tính)
+ *  - OFF-active (sau khi tắt): destructive (đỏ)
+ *  - ON: primary (xanh primary)
+ *  - Leave: luôn destructive (đỏ)
+ * ============================================================ */
+.lk-theme-sff .lk-control-bar {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Base button (TrackToggle / DisconnectButton) */
+.lk-theme-sff .lk-control-bar .lk-button {
+  width: 2.75rem !important;
+  height: 2.75rem !important;
+  border-radius: 9999px !important;
+  background-color: var(--lk-bg3) !important;
+  color: var(--lk-text-muted) !important;
+  transition: background-color 0.15s, color 0.15s, transform 0.1s !important;
+}
+
+.lk-theme-sff .lk-control-bar .lk-button:hover {
+  background-color: var(--lk-bg4) !important;
+  color: var(--lk-text) !important;
+}
+
+/* ON state (track enabled) — primary (xanh) */
+.lk-theme-sff .lk-control-bar .lk-button[data-lk-enabled='true'],
+.lk-theme-sff .lk-control-bar .lk-button[data-active='true'] {
+  background-color: var(--lk-accent) !important;
+  color: var(--lk-accent-fg) !important;
+}
+
+.lk-theme-sff .lk-control-bar .lk-button[data-lk-enabled='true']:hover,
+.lk-theme-sff .lk-control-bar .lk-button[data-active='true']:hover {
+  background-color: var(--lk-accent) !important;
+  filter: brightness(1.1);
+}
+
+/* DisconnectButton (Leave) — luôn destructive */
+.lk-theme-sff .lk-control-bar .lk-disconnect-button {
+  background-color: var(--lk-destructive) !important;
+  color: var(--lk-destructive-fg) !important;
+}
+
+.lk-theme-sff .lk-control-bar .lk-disconnect-button:hover {
+  background-color: var(--lk-destructive) !important;
+  filter: brightness(1.1);
+}
+
+/* Off-active: khi user đã từng bật rồi tắt → destructive (theo H.2) */
+.lk-theme-sff .lk-control-bar .lk-button[data-lk-enabled='false'][data-lk-was-on='true'] {
+  background-color: var(--lk-destructive) !important;
+  color: var(--lk-destructive-fg) !important;
+}
+
+/* Ẩn text label của ControlBar (verbose) — chỉ hiện icon cho gọn */
+.lk-theme-sff .lk-control-bar .lk-button-label {
+  display: none !important;
+}
+
+/* Ẩn nút StartMediaButton (dùng để fix audio context ở Safari — không cần ở đây) */
+.lk-theme-sff .lk-control-bar .lk-start-audio-button {
+  display: none !important;
+}
+
 

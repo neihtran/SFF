@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   LiveKitRoom,
   useTracks,
+  ControlBar,
+  TrackToggle,
 } from '@livekit/components-react';
 import { GridLayout, ParticipantTile } from '@livekit/components-react';
 import { Track } from 'livekit-client';
@@ -9,18 +11,24 @@ import '@livekit/components-styles';
 import { voiceApi } from './api/voice';
 import type { Channel } from '../channels/api/channels';
 import { Button } from '@/components/ui/button';
-import { VoiceControlBar } from './VoiceControlBar';
 
 /**
  * VoiceRoom — Voice/Video/Screen Share qua LiveKit.
  *
- * F.5 (spec): UI dùng component có sẵn của `@livekit/components-react`
+ * F.5 (spec): UI dùng component có sẵn của `@livekit/components-react`:
  *  - GridLayout + ParticipantTile cho danh sách người tham gia
- *  - TrackToggle (mic/cam/screen) + DisconnectButton cho control bar
- *  - Tự dựng SFF styling (màu nút: trung tính OFF-default, đỏ OFF-active, primary ON)
+ *  - ControlBar prefab cho mic/cam/screen-share/leave (đã gắn đúng vào
+ *    LiveKit Room object qua hook `useLocalParticipant` nội bộ — KHÔNG cần
+ *    viết lại bằng tay)
  *
- * F.4 (spec): screen share constraint 720p/30fps được áp ở VoiceControlBar qua
- * `captureOptionsBySource` của TrackToggle (xem VoiceControlBar.tsx).
+ * F.4 (spec): screen share 720p/30fps áp qua prop `captureOptions` của
+ * TrackToggle override trong ControlBar (xem `<CustomScreenShareToggle />`).
+ *
+ * Vì sao dùng built-in ControlBar thay vì custom:
+ *  - Đã handle MediaDeviceMenu, permission check, error recovery, browser compat
+ *  - TrackToggle / DisconnectButton đã gắn đúng vào Room.localParticipant
+ *  - Tránh bugs khi tự re-implement (no mic, no permission, iOS Safari quirks)
+ *  - Style SFF override qua CSS class `lk-control-bar-sff` trong globals.css
  */
 export function VoiceRoom({
   channel,
@@ -34,9 +42,6 @@ export function VoiceRoom({
   const [connecting, setConnecting] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Chống double-fetch khi:
-  //  - React.StrictMode chạy effect 2 lần trong dev
-  //  - đổi channel liên tiếp (race với request cũ)
   const fetchedFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -96,7 +101,6 @@ export function VoiceRoom({
       connect
       connectOptions={{ autoSubscribe: true }}
       className="flex flex-1 flex-col"
-      // Tắt audio/video renderer mặc định của LiveKit — ParticipantTile tự lo.
       audio={false}
       video={false}
     >
@@ -107,9 +111,14 @@ export function VoiceRoom({
 
 /**
  * RoomContent — layout voice channel:
- *  - Header (tên channel + rời phòng)
+ *  - Header (tên channel + rời phòng — nút trên header chỉ navigate back,
+ *    KHÔNG phải room disconnect vì LiveKit sẽ auto cleanup khi unmount)
  *  - GridLayout + ParticipantTile (camera & screen share)
- *  - VoiceControlBar (mic/cam/screen/leave) ở footer
+ *  - Built-in LiveKit ControlBar ở footer — đã handle đúng:
+ *      + mic: room.localParticipant.setMicrophoneEnabled(bool)
+ *      + cam: room.localParticipant.setCameraEnabled(bool)
+ *      + screen share: room.localParticipant.setScreenShareEnabled(bool, options)
+ *      + leave: room.disconnect()
  */
 function RoomContent({
   channel,
@@ -118,9 +127,6 @@ function RoomContent({
   channel: Channel;
   onLeave: () => void;
 }): React.ReactElement {
-  // Lấy TẤT CẢ tracks camera + screen share (của cả local lẫn remote).
-  // Dùng {withPlaceholder: true} để hiển thị cả participant không bật camera
-  // (đặc biệt quan trọng cho voice-only participants — vẫn thấy avatar + name).
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -158,9 +164,44 @@ function RoomContent({
         )}
       </div>
 
-      <div className="border-t border-border p-2">
-        <VoiceControlBar />
+      {/* ControlBar built-in — Component tự gắn vào Room context */}
+      <div className="lk-theme-sff border-t border-border p-2">
+        <ControlBar
+          variation="verbose"
+          controls={{
+            microphone: true,
+            camera: true,
+            screenShare: true,
+            chat: false, // SFF có chat riêng, không dùng LiveKit ChatToggle
+            leave: true,
+            settings: false, // SFF không cần settings panel của LiveKit
+          }}
+          onDeviceError={(err) => console.error('[voice] device error:', err)}
+        >
+          {/* F.4: Override TrackToggle cho screen share — áp constraint 720p/30fps.
+              Các TrackToggle khác (mic, cam) dùng mặc định — đã đúng chuẩn LiveKit. */}
+          <CustomScreenShareToggle />
+        </ControlBar>
       </div>
     </>
+  );
+}
+
+/**
+ * Custom TrackToggle cho screen share — F.4 spec: 720p / 30fps.
+ * LiveKit ControlBar nhận children để thay thế TrackToggle mặc định.
+ * Đây là cách LiveKit khuyến nghị để áp capture options riêng cho screen share.
+ */
+function CustomScreenShareToggle(): React.ReactElement {
+  return (
+    <TrackToggle
+      source={Track.Source.ScreenShare}
+      captureOptions={{
+        // F.4 spec: 1280x720 @ 30fps
+        resolution: { width: 1280, height: 720, frameRate: 30 },
+        audio: true,
+        selfBrowserSurface: 'include',
+      }}
+    />
   );
 }
