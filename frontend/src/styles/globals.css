@@ -113,7 +113,10 @@
   html,
   body,
   #root {
+    /* h-screen để #root luôn = 100vh — đảm bảo flex layout dưới có height giới hạn */
     @apply h-full;
+    /* Đảm bảo html root = viewport height cho mọi trình duyệt */
+    min-height: 100vh;
   }
   body {
     @apply bg-background text-foreground antialiased;

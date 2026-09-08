@@ -74,39 +74,42 @@ export function ServerSidebar({
 
       <div className="mx-2 h-px w-8 bg-border" />
 
-      {/* Server list with stagger animation */}
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: { transition: { staggerChildren: 0.05 } },
-        }}
-        className="flex flex-col items-center gap-2"
-      >
-        {servers.map((srv) => (
-          <motion.button
-            key={srv.id}
-            variants={{
-              hidden: { opacity: 0, scale: 0.8 },
-              visible: { opacity: 1, scale: 1 },
-            }}
-            onClick={() => onSelectServer(srv)}
-            className={`group relative flex size-10 items-center justify-center rounded-[16px] text-sm font-bold transition-all duration-150 ${
-              srv.id === selectedServerId
-                ? 'rounded-2xl bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:rounded-2xl hover:bg-primary hover:text-primary-foreground'
-            }`}
-            title={srv.name}
-          >
-            {srv.iconUrl ? (
-              <img src={srv.iconUrl} alt={srv.name} className="size-9 rounded-[14px] object-cover" />
-            ) : (
-              <span>{srv.name.slice(0, 2).toUpperCase()}</span>
-            )}
-          </motion.button>
-        ))}
-      </motion.div>
+      {/* Server list — scrollable khi có nhiều server */}
+      {/* Native div thay vì Radix ScrollArea (cùng lý do: overflow:hidden cản flex layout) */}
+      <div className="min-h-0 w-full flex-1 overflow-y-auto">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: {},
+            visible: { transition: { staggerChildren: 0.05 } },
+          }}
+          className="flex flex-col items-center gap-2 px-0"
+        >
+          {servers.map((srv) => (
+            <motion.button
+              key={srv.id}
+              variants={{
+                hidden: { opacity: 0, scale: 0.8 },
+                visible: { opacity: 1, scale: 1 },
+              }}
+              onClick={() => onSelectServer(srv)}
+              className={`group relative flex size-10 items-center justify-center rounded-[16px] text-sm font-bold transition-all duration-150 ${
+                srv.id === selectedServerId
+                  ? 'rounded-2xl bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:rounded-2xl hover:bg-primary hover:text-primary-foreground'
+              }`}
+              title={srv.name}
+            >
+              {srv.iconUrl ? (
+                <img src={srv.iconUrl} alt={srv.name} className="size-9 rounded-[14px] object-cover" />
+              ) : (
+                <span>{srv.name.slice(0, 2).toUpperCase()}</span>
+              )}
+            </motion.button>
+          ))}
+        </motion.div>
+      </div>
 
       {/* Create server */}
       <button
@@ -117,10 +120,12 @@ export function ServerSidebar({
         <Plus size={20} />
       </button>
 
+      <div className="mt-auto" />
+
       {/* Join server */}
       <button
         onClick={handleJoinServer}
-        className="mt-auto flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-blue-600 hover:text-white"
+        className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-blue-600 hover:text-white"
         title="Tham gia server"
       >
         <span className="text-xs">↗</span>

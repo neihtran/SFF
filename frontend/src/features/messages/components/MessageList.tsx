@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
@@ -30,11 +29,11 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translating, setTranslating] = useState<Record<string, boolean>>({});
-  // AI đang xử lý 1 câu hỏi (placeholder bubble hiển thị typing dots)
   const [aiThinking, setAiThinking] = useState(false);
+
   const topRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollDivRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
   // Load initial messages
@@ -67,7 +66,6 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
         if (prev.some((m) => m.id === msg.id)) return prev;
         return [...prev, msg];
       });
-      // Khi nhận AI reply → tắt placeholder
       if (msg.isAiReply) setAiThinking(false);
     }
     function onEdited(msg: Message) {
@@ -106,7 +104,31 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
     };
   }, [channelId, socket, currentUserId]);
 
-  // Auto-scroll
+  // ============================================================
+  // FIX scroll: dùng native overflow-y-auto thay vì Radix ScrollArea.
+  //
+  // Tại sao Radix ScrollArea không hoạt động?
+  //  - Radix Root có `overflow: hidden` — ngăn browser layout engine tính flex
+  //  - Viewport có `h-full` nhưng Root không có chiều cao giới hạn
+  //  → flex-1 không co giãn → scroll không bao giờ trigger
+  //
+  // Giải pháp: dùng native flex layout + overflow-y-auto (pattern đã hoạt động
+  // ở ChannelSidebar). Chain:
+  //  AppLayout(h-full) > flex-col > flex-1 > min-h-0 > overflow-y-auto
+  //
+  // Auto-scroll logic:
+  //  - isAtBottom = true khi scrollPercentage > 90%
+  //  - Nếu đang ở đáy (isAtBottom=true) → auto-scroll xuống đáy
+  //  - Nếu đang ở giữa (isAtBottom=false) → KHÔNG tự kéo xuống
+  // ============================================================
+  function onScroll() {
+    const el = scrollDivRef.current;
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    setIsAtBottom(max > 0 ? (el.scrollTop / max) * 100 > 90 : true);
+  }
+
+  // Auto-scroll when new messages arrive + user is at bottom
   useEffect(() => {
     if (isAtBottom && messages.length > 0) {
       bottomRef.current?.scrollIntoView({ behavior: isInitialLoad.current ? 'instant' : 'smooth' });
@@ -117,22 +139,17 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   // Auto-scroll khi AI bắt đầu typing
   useEffect(() => {
     if (aiThinking && isAtBottom) {
-      // chờ 1 tick để DOM render placeholder rồi mới scroll
       const t = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       return () => clearTimeout(t);
     }
   }, [aiThinking, isAtBottom]);
 
-  // Timeout an toàn: nếu sau 30s AI không trả lời → ẩn placeholder (tránh kẹt vĩnh viễn)
+  // Timeout an toàn: nếu sau 30s AI không trả lời → ẩn placeholder
   useEffect(() => {
     if (!aiThinking) return;
     const t = setTimeout(() => setAiThinking(false), 30_000);
     return () => clearTimeout(t);
   }, [aiThinking]);
-
-  function handleScroll(values: { scrollPercentage: number }) {
-    setIsAtBottom(values.scrollPercentage > 90);
-  }
 
   async function loadMore() {
     if (!cursor || loadingMore || !hasMore) return;
@@ -150,11 +167,7 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   }
 
   async function handleSend(content: string, attachmentUrls?: string[]) {
-    // Nếu user gửi @AI ... → bật placeholder ngay (fire-and-forget ở backend,
-    // không cần đợi response; AI reply sẽ được push qua socket 'message:new')
-    if (/^@AI(\s|$)/i.test(content)) {
-      setAiThinking(true);
-    }
+    if (/^@AI(\s|$)/i.test(content)) setAiThinking(true);
     await messagesApi.create(channelId, content, attachmentUrls);
   }
 
@@ -207,11 +220,12 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <ScrollArea
-        className="flex-1"
-        viewportRef={scrollRef}
-        onScrollPositionChange={handleScroll}
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Native scroll container — dùng overflow-y-auto thay vì Radix ScrollArea */}
+      <div
+        ref={scrollDivRef}
+        className="min-h-0 flex-1 overflow-y-auto"
+        onScroll={onScroll}
       >
         {hasMore && (
           <div className="flex justify-center py-2" ref={topRef}>
@@ -244,13 +258,11 @@ export function MessageList({ channelId, currentUserId, socket }: MessageListPro
               isTranslating={!!translating[msg.id]}
             />
           ))}
-
-          {/* Placeholder bubble "AI đang suy nghĩ..." khi user vừa gửi @AI */}
           {aiThinking && <AiTypingBubble key="ai-thinking-placeholder" />}
         </AnimatePresence>
 
         <div ref={bottomRef} className="h-1" />
-      </ScrollArea>
+      </div>
 
       <TypingIndicator typingUsers={typingUsers} />
       <MessageInput channelId={channelId} socket={socket} onSend={handleSend} />

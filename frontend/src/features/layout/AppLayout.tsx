@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Plus, Settings, Users, Hash } from 'lucide-react';
 import { ServerSidebar } from './ServerSidebar';
@@ -60,6 +61,27 @@ export function AppLayout(): React.ReactElement {
     if (!user) return;
     serversApi.listMine().then(setServers).catch(console.error);
   }, [user]);
+
+  // Đọc URL params để set channel ban đầu (khi navigate thẳng tới /app/:serverId/:channelId)
+  const params = useParams<{ serverId: string; channelId: string }>();
+  useEffect(() => {
+    if (!user || !params.serverId || !params.channelId) return;
+    // Tìm server trong danh sách đã load
+    const srv = servers.find((s) => s.id === params.serverId);
+    if (srv) {
+      setSelectedServer(srv);
+      // Fetch channel để có đầy đủ thông tin
+      import('@/features/channels/api/channels').then(({ channelsApi }) => {
+        channelsApi.list(params.serverId!).then((chs) => {
+          const ch = chs.find((c) => c.id === params.channelId);
+          if (ch) setSelectedChannel(ch);
+        }).catch(() => {
+          // Fallback: set channel với id cơ bản nếu fetch fail
+          setSelectedChannel({ id: params.channelId!, name: '...', type: 'TEXT' as const, serverId: params.serverId!, createdAt: new Date().toISOString() });
+        });
+      });
+    }
+  }, [user, params.serverId, params.channelId, servers]);
 
   // Đóng panel khi đổi server — tránh sticky
   useEffect(() => {
@@ -128,7 +150,8 @@ export function AppLayout(): React.ReactElement {
 
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <div className="flex h-full overflow-hidden">
+    // min-h-0 để AppLayout root co giãn đúng với viewport (window height)
+    <div className="flex h-full min-h-0 overflow-hidden">
       {/* Left: server icons */}
       <ServerSidebar onSelectServer={handleSelectServer} selectedServerId={selectedServer?.id} />
 
@@ -139,7 +162,7 @@ export function AppLayout(): React.ReactElement {
           initial={{ opacity: 0, x: -16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.15 }}
-          className="flex"
+          className="flex min-h-0"
         >
           <ChannelSidebar
             serverId={selectedServer.id}
@@ -164,7 +187,7 @@ export function AppLayout(): React.ReactElement {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-1 flex-col"
+              className="flex min-h-0 flex-1 flex-col"
             >
               <VoiceRoom
                 channel={voiceChannel}
@@ -174,17 +197,17 @@ export function AppLayout(): React.ReactElement {
           )}
         </AnimatePresence>
 
-        {/* Messages */}
+        {/* Messages — flex item cần `min-h-0` để co giãn đúng trong flex cột */}
         {!voiceChannel && selectedChannel && (
           <motion.div
             key={selectedChannel.id}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.1 }}
-            className="flex flex-1 flex-col"
+            className="flex min-h-0 flex-1 flex-col"
           >
             {/* Channel header */}
-            <div className="flex h-12 items-center gap-2 border-b border-border px-4">
+            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
               <Hash size={18} className="text-muted-foreground" />
               <span className="flex-1 truncate font-semibold">{selectedChannel.name}</span>
               <Button
