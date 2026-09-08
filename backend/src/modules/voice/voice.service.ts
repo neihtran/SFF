@@ -88,7 +88,11 @@ export class VoiceService {
     token.ttl = `${LIVEKIT_TOKEN_TTL_SECONDS}s`;
 
     const jwt = await token.toJwt();
+    const decoded = JSON.parse(
+      Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8'),
+    );
     this.logger.debug(`Voice token generated for ${userId} in room ${channelId}`);
+    this.logger.debug(`Token payload: ${JSON.stringify(decoded)}`);
 
     return { token: jwt, livekitUrl };
   }
