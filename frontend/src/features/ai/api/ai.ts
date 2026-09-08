@@ -10,6 +10,10 @@ export interface SemanticResult {
   similarity: number;
 }
 
+export interface SemanticSearchResponse {
+  results: SemanticResult[];
+}
+
 export interface AiDocument {
   id: string;
   serverId: string;
@@ -29,8 +33,10 @@ export const aiApi = {
   ): Promise<SemanticResult[]> => {
     const params = new URLSearchParams({ query, serverId });
     if (channelId) params.set('channelId', channelId);
-    const { data } = await axiosClient.get<SemanticResult[]>(`/search/semantic?${params}`);
-    return data;
+    const { data } = await axiosClient.get<SemanticSearchResponse>(
+      `/search/semantic?${params}`,
+    );
+    return data.results ?? [];
   },
 
   listDocuments: async (serverId: string): Promise<AiDocument[]> => {

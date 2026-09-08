@@ -87,8 +87,8 @@ export const messagesApi = {
   addReaction: async (
     messageId: string,
     emoji: string,
-  ): Promise<{ reactions: MessageReaction[] }> => {
-    const { data } = await axiosClient.post<{ reactions: MessageReaction[] }>(
+  ): Promise<MessageReaction[]> => {
+    const { data } = await axiosClient.post<MessageReaction[]>(
       `/messages/${messageId}/reactions`,
       { emoji },
     );
@@ -98,8 +98,8 @@ export const messagesApi = {
   removeReaction: async (
     messageId: string,
     reactionId: string,
-  ): Promise<{ reactions: MessageReaction[] }> => {
-    const { data } = await axiosClient.delete<{ reactions: MessageReaction[] }>(
+  ): Promise<MessageReaction[]> => {
+    const { data } = await axiosClient.delete<MessageReaction[]>(
       `/messages/${messageId}/reactions/${reactionId}`,
     );
     return data;

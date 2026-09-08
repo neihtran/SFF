@@ -44,7 +44,7 @@ export function useNotifications() {
   }, [listQuery.data, listQuery.error, setAll, setError]);
 
   useEffect(() => {
-    if (unreadQuery.data) setUnreadCount(unreadQuery.data.count);
+    if (unreadQuery.data !== undefined) setUnreadCount(unreadQuery.data);
   }, [unreadQuery.data, setUnreadCount]);
 
   // Reset store khi unmount (vd logout)
@@ -54,7 +54,7 @@ export function useNotifications() {
 
   return {
     items: listQuery.data ?? [],
-    unreadCount: unreadQuery.data?.count ?? 0,
+    unreadCount: unreadQuery.data ?? 0,
     isLoading: listQuery.isLoading,
     error: listQuery.error,
     markOneRead,

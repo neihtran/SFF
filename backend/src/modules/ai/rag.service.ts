@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from './ai.service';
 import { ChatGatewayService } from '../chat-gateway/chat-gateway.service';
@@ -159,7 +160,7 @@ export class RagService {
         u.id AS sender_id,
         u.name AS sender_name,
         u.avatar_url,
-        m.embedding <=> ${serverVec}::vector(768) AS distance
+        me.embedding <=> ${serverVec}::vector(768) AS distance
       FROM messages m
       JOIN message_embeddings me ON m.id = me.message_id
       JOIN channels c ON m.channel_id = c.id
@@ -168,8 +169,8 @@ export class RagService {
       WHERE s.id = ${serverId}
         AND c.server_id = ${serverId}
         AND m.is_ai_reply = false
-        ${channelId ? this.prisma.$queryRaw`AND c.id = ${channelId}` : this.prisma.$queryRaw``}
-      ORDER BY m.embedding <=> ${serverVec}::vector(768)
+        ${channelId ? Prisma.sql`AND c.id = ${channelId}` : Prisma.empty}
+      ORDER BY me.embedding <=> ${serverVec}::vector(768)
       LIMIT ${SEMANTIC_SEARCH_TOP_K}`;
 
     return results.map((r) => ({

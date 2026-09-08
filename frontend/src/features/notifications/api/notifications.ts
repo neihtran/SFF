@@ -14,10 +14,6 @@ export interface NotificationItem {
   createdAt: string;
 }
 
-export interface UnreadCountResponse {
-  count: number;
-}
-
 export const notificationsApi = {
   /** List my notifications (mới nhất trước, tối đa 100) */
   list: async (unreadOnly = false): Promise<NotificationItem[]> => {
@@ -26,8 +22,9 @@ export const notificationsApi = {
     return data;
   },
 
-  unreadCount: async (): Promise<UnreadCountResponse> => {
-    const { data } = await axiosClient.get<UnreadCountResponse>('/notifications/unread-count');
+  unreadCount: async (): Promise<number> => {
+    // Backend trả về số nguyên trực tiếp (vd: 0), không phải object
+    const { data } = await axiosClient.get<number>('/notifications/unread-count');
     return data;
   },
 
