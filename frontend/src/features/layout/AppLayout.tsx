@@ -65,7 +65,14 @@ export function AppLayout(): React.ReactElement {
   // Đọc URL params để set channel ban đầu (khi navigate thẳng tới /app/:serverId/:channelId)
   const params = useParams<{ serverId: string; channelId: string }>();
   useEffect(() => {
+    // QUAN TRỌNG: nếu đã chọn voice channel từ sidebar thì KHÔNG ghi đè bằng URL params
+    // Nếu không có guard này, effect này sẽ fetch channel từ URL và setSelectedChannel,
+    // ghi đè quyết định của user khi click vào voice channel.
     if (!user || !params.serverId || !params.channelId) return;
+    if (voiceChannel) {
+      // Đã chọn voice channel từ sidebar — KHÔNG ghi đè bằng URL params
+      return;
+    }
     // Tìm server trong danh sách đã load
     const srv = servers.find((s) => s.id === params.serverId);
     if (srv) {
@@ -73,14 +80,22 @@ export function AppLayout(): React.ReactElement {
       // Fetch channel để có đầy đủ thông tin
       import('@/features/channels/api/channels').then(({ channelsApi }) => {
         channelsApi.list(params.serverId!).then((chs) => {
+          // Chỉ set selectedChannel nếu channel ID trong URL khớp với channel type TEXT
+          // (voice channel có ID riêng trong URL nếu người dùng navigate thẳng tới nó)
           const ch = chs.find((c) => c.id === params.channelId);
-          if (ch) setSelectedChannel(ch);
+          if (ch && ch.type === 'TEXT') {
+            setSelectedChannel(ch);
+          } else if (ch && ch.type === 'VOICE') {
+            // URL trỏ thẳng vào voice channel — set voiceChannel luôn
+            setVoiceChannel(ch);
+          }
         }).catch(() => {
           // Fallback: set channel với id cơ bản nếu fetch fail
           setSelectedChannel({ id: params.channelId!, name: '...', type: 'TEXT' as const, serverId: params.serverId!, createdAt: new Date().toISOString() });
         });
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, params.serverId, params.channelId, servers]);
 
   // Đóng panel khi đổi server — tránh sticky

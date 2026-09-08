@@ -99,7 +99,6 @@ export function VoiceRoom({
       // Tắt audio/video renderer mặc định của LiveKit — ParticipantTile tự lo.
       audio={false}
       video={false}
-      onDisconnected={() => onLeave()}
     >
       <RoomContent channel={channel} onLeave={onLeave} />
     </LiveKitRoom>
